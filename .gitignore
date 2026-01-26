@@ -1,0 +1,6 @@
+# Trading Journal - Git Ignore
+/config/database.php
+/uploads/
+*.log
+.DS_Store
+Thumbs.db
