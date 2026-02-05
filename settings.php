@@ -28,6 +28,11 @@ try {
     $accountsQuery = $pdo->prepare("SELECT * FROM accounts WHERE user_id = ? ORDER BY name");
     $accountsQuery->execute([$userId]);
     $accounts = $accountsQuery->fetchAll();
+
+    // Get checklist rules
+    $rulesQuery = $pdo->prepare("SELECT * FROM user_rules WHERE user_id = ? ORDER BY display_order");
+    $rulesQuery->execute([$userId]);
+    $userRules = $rulesQuery->fetchAll();
     
     // Handle form submissions
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -37,6 +42,9 @@ try {
             $name = trim($_POST['name'] ?? '');
             $email = trim($_POST['email'] ?? '');
             $timezone = trim($_POST['timezone'] ?? 'UTC');
+            $dailyLimit = intval($_POST['daily_trade_limit'] ?? 2);
+            $notifyTradeClose = isset($_POST['notify_on_trade_close']) ? 1 : 0;
+            $notifyOvertrading = isset($_POST['notify_on_overtrading']) ? 1 : 0;
             
             if ($name && $email) {
                 // Check if email is taken by another user
@@ -45,13 +53,16 @@ try {
                 if ($checkEmail->fetch()) {
                     $error = "Email is already taken by another account.";
                 } else {
-                    $stmt = $pdo->prepare("UPDATE users SET name = ?, email = ?, timezone = ? WHERE id = ?");
-                    $stmt->execute([$name, $email, $timezone, $userId]);
+                    $stmt = $pdo->prepare("UPDATE users SET name = ?, email = ?, timezone = ?, daily_trade_limit = ?, notify_on_trade_close = ?, notify_on_overtrading = ? WHERE id = ?");
+                    $stmt->execute([$name, $email, $timezone, $dailyLimit, $notifyTradeClose, $notifyOvertrading, $userId]);
                     $_SESSION['user_name'] = $name;
                     $success = "Profile updated successfully!";
                     $user['name'] = $name;
                     $user['email'] = $email;
                     $user['timezone'] = $timezone;
+                    $user['daily_trade_limit'] = $dailyLimit;
+                    $user['notify_on_trade_close'] = $notifyTradeClose;
+                    $user['notify_on_overtrading'] = $notifyOvertrading;
                 }
             }
         } elseif ($action === 'change_password') {
@@ -77,10 +88,11 @@ try {
             $accountType = trim($_POST['account_type'] ?? 'LIVE');
             $balance = floatval($_POST['initial_balance'] ?? 0);
             $currency = trim($_POST['currency'] ?? 'USD');
+            $offset = intval($_POST['broker_time_offset'] ?? 0);
             
             if ($accountName) {
-                $stmt = $pdo->prepare("INSERT INTO accounts (user_id, name, broker, type, initial_balance, current_balance, currency) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$userId, $accountName, $broker, $accountType, $balance, $balance, $currency]);
+                $stmt = $pdo->prepare("INSERT INTO accounts (user_id, name, broker, type, initial_balance, current_balance, currency, broker_time_offset) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$userId, $accountName, $broker, $accountType, $balance, $balance, $currency, $offset]);
                 $success = "Trading account added!";
                 
                 // Refresh accounts list
@@ -97,6 +109,27 @@ try {
                 $accountsQuery->execute([$userId]);
                 $accounts = $accountsQuery->fetchAll();
             }
+        } elseif ($action === 'update_rules') {
+            $rules = $_POST['rules'] ?? [];
+            
+            // Delete existing rules
+            $pdo->prepare("DELETE FROM user_rules WHERE user_id = ?")->execute([$userId]);
+            
+            // Insert new rules
+            $stmt = $pdo->prepare("INSERT INTO user_rules (user_id, rule_text, display_order) VALUES (?, ?, ?)");
+            foreach ($rules as $index => $ruleText) {
+                $ruleText = trim($ruleText);
+                if (!empty($ruleText)) {
+                    $stmt->execute([$userId, $ruleText, $index]);
+                }
+            }
+            $success = "Checklist rules updated successfully!";
+        } elseif ($action === 'generate_api_key') {
+            $apiKey = bin2hex(random_bytes(32));
+            $stmt = $pdo->prepare("UPDATE users SET api_key = ? WHERE id = ?");
+            $stmt->execute([$apiKey, $userId]);
+            $user['api_key'] = $apiKey;
+            $success = "New API Key generated successfully!";
         }
     }
     
@@ -230,6 +263,30 @@ $timezones = [
                                 <?php endforeach; ?>
                             </select>
                         </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Daily Trade Limit</label>
+                            <div class="input-group">
+                                <input type="number" name="daily_trade_limit" class="form-control-luxury" 
+                                       value="<?php echo htmlspecialchars($user['daily_trade_limit'] ?? 2); ?>" min="1" max="100">
+                                <span class="input-group-text bg-glass border-glass text-muted small">trades / day</span>
+                            </div>
+                            <small class="text-muted-custom opacity-75">Prevents you from over-trading by blocking manual and MT5 trades after this limit is reached.</small>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label d-block mb-2">Email Notifications</label>
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" name="notify_on_trade_close" id="notifyClose" 
+                                       <?php echo ($user['notify_on_trade_close'] ?? 1) ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="notifyClose">Notify when a trade is closed</label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="notify_on_overtrading" id="notifyOver" 
+                                       <?php echo ($user['notify_on_overtrading'] ?? 1) ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="notifyOver">Notify when over-trading limit is reached</label>
+                            </div>
+                        </div>
                         
                         <div class="mb-3">
                             <label class="form-label text-muted">Member Since</label>
@@ -300,6 +357,7 @@ $timezones = [
                                     <th>Account Name</th>
                                     <th>Broker</th>
                                     <th>Type</th>
+                                    <th>Offset</th>
                                     <th>Initial Balance</th>
                                     <th>Current Balance</th>
                                     <th>Currency</th>
@@ -316,6 +374,7 @@ $timezones = [
                                             <?php echo $account['type']; ?>
                                         </span>
                                     </td>
+                                    <td><?php echo ($account['broker_time_offset'] >= 0 ? '+' : '') . $account['broker_time_offset']; ?>h</td>
                                     <td><?php echo number_format($account['initial_balance'], 2); ?> <small><?php echo $account['currency']; ?></small></td>
                                     <td class="<?php echo $account['current_balance'] >= $account['initial_balance'] ? 'text-green' : 'text-red'; ?>">
                                         <?php echo number_format($account['current_balance'], 2); ?> <small><?php echo $account['currency']; ?></small>
@@ -339,8 +398,105 @@ $timezones = [
                 </div>
             </div>
             
+            <!-- Veteran Checklist Rules -->
+            <div class="col-12">
+                <div class="dashboard-card">
+                    <h5 class="text-gold mb-3"><i class="bi bi-shield-check me-2"></i>Veteran Pre-Trade Rules</h5>
+                    <p class="text-muted-custom small mb-4">Define your 10 mandatory rules for trading. You must meet 90% (9 out of 10) to unlock the "Add Trade" button each day.</p>
+                    
+                    <form method="POST" id="checklistRulesForm">
+                        <input type="hidden" name="action" value="update_rules">
+                        <div id="rulesContainer">
+                            <?php if (empty($userRules)): ?>
+                                <?php 
+                                $defaults = [
+                                    "Did I get at least 7 hours of quality sleep?",
+                                    "Is my head clear (no 'cloudy head', stress, or hangover)?",
+                                    "Have I checked the economic calendar for high-impact news?",
+                                    "Is my trading plan/strategy open and visible?",
+                                    "Do I have a specific daily loss limit set for today?",
+                                    "Is my trading environment quiet and free of distractions?",
+                                    "Have I checked my internet and broker connection?",
+                                    "Am I feeling patient and ready to wait for my setups?",
+                                    "Am I committed to journaling every single trade today?",
+                                    "Have I identified key support/resistance levels on my charts?"
+                                ];
+                                foreach($defaults as $i => $rule): ?>
+                                <div class="mb-2 d-flex gap-2 rule-row">
+                                    <span class="text-gold pt-2 fw-bold" style="min-width: 25px;"><?php echo $i + 1; ?>.</span>
+                                    <input type="text" name="rules[]" class="form-control-luxury" value="<?php echo htmlspecialchars($rule); ?>" required>
+                                </div>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <?php foreach ($userRules as $i => $rule): ?>
+                                <div class="mb-2 d-flex gap-2 rule-row">
+                                    <span class="text-gold pt-2 fw-bold" style="min-width: 25px;"><?php echo $i + 1; ?>.</span>
+                                    <input type="text" name="rules[]" class="form-control-luxury" value="<?php echo htmlspecialchars($rule['rule_text']); ?>" required>
+                                </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-luxury px-4">
+                                <i class="bi bi-save me-2"></i>Save My Trading Standards
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <!-- Danger Zone -->
             <div class="col-12">
+                <div class="dashboard-card">
+                    <h5 class="text-gold mb-3"><i class="bi bi-cpu me-2"></i>Auto-Sync Integrations (MT5 / Exness)</h5>
+                    <p class="text-muted-custom small mb-4">Connect your MetaTrader 5 or Exness account to automatically sync closed trades. Use the details below in your Expert Advisor.</p>
+                    
+                    <div class="row g-4">
+                        <div class="col-md-8">
+                            <div class="form-group mb-3">
+                                <label class="form-label text-gold">Webhook URL</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control-luxury" value="<?php echo "http://" . $_SERVER['HTTP_HOST'] . str_replace('settings.php', 'api/trades/webhook_mt5.php', $_SERVER['REQUEST_URI']); ?>" readonly id="webhookUrl">
+                                    <button class="btn btn-outline-luxury" type="button" onclick="copyToClipboard('webhookUrl')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label text-gold">Your Secret API Key</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control-luxury" value="<?php echo htmlspecialchars($user['api_key'] ?? 'No key generated Yet'); ?>" readonly id="apiKey">
+                                    <button class="btn btn-outline-luxury" type="button" onclick="copyToClipboard('apiKey')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <form method="POST" class="w-100">
+                                <input type="hidden" name="action" value="generate_api_key">
+                                <button type="submit" class="btn btn-luxury w-100">
+                                    <i class="bi bi-arrow-repeat me-2"></i>Generate New Key
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <script>
+                function copyToClipboard(elementId) {
+                    var copyText = document.getElementById(elementId);
+                    copyText.select();
+                    copyText.setSelectionRange(0, 99999);
+                    navigator.clipboard.writeText(copyText.value);
+                    alert("Copied: " + copyText.value);
+                }
+            </script>
+
+            <!-- Danger Zone -->
                 <div class="dashboard-card" style="border: 1px solid var(--red);">
                     <h5 class="text-red mb-3"><i class="bi bi-exclamation-triangle me-2"></i>Danger Zone</h5>
                     <p class="text-secondary mb-3">These actions are irreversible. Please be careful.</p>
@@ -398,6 +554,11 @@ $timezones = [
                         <div class="mt-3">
                             <label class="form-label-luxury">Initial Balance</label>
                             <input type="number" step="0.01" name="initial_balance" class="form-control-luxury" value="10000" min="0">
+                        </div>
+                        <div class="mt-3">
+                            <label class="form-label-luxury">Time Offset (Hours)</label>
+                            <input type="number" name="broker_time_offset" class="form-control-luxury" value="0" step="1">
+                            <div class="form-text text-muted-custom small">Adjust MT5 timestamps to your local time (e.g., +6 for Exness to Manila).</div>
                         </div>
                     </div>
                     <div class="modal-footer">

@@ -1,3 +1,10 @@
+<?php
+require_once 'config/database.php';
+if (isset($_SESSION['logged_in']) && $_SESSION['logged_in']) {
+    header('Location: dashboard.php');
+    exit;
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -102,18 +109,21 @@
             <div class="d-flex flex-column gap-3">
                 <!-- Google Login Button -->
                 <div id="g_id_onload"
-                     data-client_id="54002100824-tnk5rgnp09ha4cu8kfuh5071ii1st4tn.apps.googleusercontent.com"
+                     data-client_id="<?php echo getenv('GOOGLE_CLIENT_ID'); ?>"
                      data-context="signin"
                      data-ux_mode="popup"
                      data-callback="handleGoogleResponse"
-                     data-auto_prompt="false">
+                     data-auto_prompt="false"
+                     data-auto_select="false"
+                     data-itp_support="true"
+                     data-use_fedcm_for_prompt="true">
                 </div>
 
                 <div class="g_id_signin"
                      data-type="standard"
                      data-shape="pill"
                      data-theme="outline"
-                     data-text="signin_with"
+                     data-text="signin"
                      data-size="large"
                      data-logo_alignment="left"
                      data-width="360">

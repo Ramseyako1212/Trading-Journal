@@ -90,6 +90,26 @@ try {
     $tagsQuery = $pdo->prepare("SELECT * FROM tags WHERE user_id = ? ORDER BY name");
     $tagsQuery->execute([$userId]);
     $tags = $tagsQuery->fetchAll();
+
+    // NEW: Check for daily trade limit alert
+    $userLimitQuery = $pdo->prepare("SELECT daily_trade_limit FROM users WHERE id = ?");
+    $userLimitQuery->execute([$userId]);
+    $dailyLimit = $userLimitQuery->fetchColumn();
+
+    $todayCountQuery = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE user_id = ? AND DATE(entry_time) = CURDATE() AND status != 'CANCELLED'");
+    $todayCountQuery->execute([$userId]);
+    $todayTradeCount = $todayCountQuery->fetchColumn();
+    
+    $isLimitReached = $todayTradeCount >= $dailyLimit;
+
+    // Fetch in-app notifications
+    $notifQuery = $pdo->prepare("SELECT * FROM system_notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 5");
+    $notifQuery->execute([$userId]);
+    $notifications = $notifQuery->fetchAll();
+
+    $unreadCountQuery = $pdo->prepare("SELECT COUNT(*) FROM system_notifications WHERE user_id = ? AND is_read = 0");
+    $unreadCountQuery->execute([$userId]);
+    $unreadCount = $unreadCountQuery->fetchColumn();
     
 } catch (PDOException $e) {
     $error = "Database error: " . $e->getMessage();
@@ -125,7 +145,13 @@ try {
     <!-- Animated Background -->
     <div class="bg-animated"></div>
     <div class="grid-overlay"></div>
+
+    <!-- 2026 Background Blobs -->
+    <div class="spatial-blob blob-gold"></div>
+    <div class="spatial-blob blob-cyan"></div>
     
+    <?php include 'includes/checklist_modal.php'; ?>
+
     <!-- Sidebar -->
     <aside class="sidebar-luxury" id="sidebar">
         <div class="sidebar-brand">
@@ -211,7 +237,50 @@ try {
                 <h4 class="mb-1">Welcome back, <span class="text-gold"><?php echo htmlspecialchars($userName); ?></span></h4>
                 <p class="text-muted-custom mb-0">Here's your trading overview</p>
             </div>
-            <div class="d-flex gap-3">
+            <div class="d-flex gap-3 align-items-center">
+                <!-- Notification Bell -->
+                <div class="dropdown me-2">
+                    <button class="btn btn-icon-luxury position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-bell"></i>
+                        <?php if ($unreadCount > 0): ?>
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-dark" style="font-size: 0.5rem; padding: 0.35em 0.5em;">
+                                <?php echo $unreadCount; ?>
+                            </span>
+                        <?php endif; ?>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end dropdown-menu-dark bg-glass border-glass shadow-lg p-0" style="width: 300px;">
+                        <div class="p-3 border-bottom border-glass d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0 text-gold smaller text-uppercase letter-spacing-1">Notifications</h6>
+                            <?php if ($unreadCount > 0): ?>
+                                <span class="badge bg-danger rounded-pill smaller"><?php echo $unreadCount; ?> new</span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="notification-dropdown-list" style="max-height: 350px; overflow-y: auto;">
+                            <?php if (empty($notifications)): ?>
+                                <div class="p-4 text-center text-muted-custom">
+                                    <i class="bi bi-bell-slash d-block mb-2 h4 opacity-25"></i>
+                                    <p class="smaller mb-0">No new notifications</p>
+                                </div>
+                            <?php else: ?>
+                                <?php foreach ($notifications as $notif): ?>
+                                    <div class="p-3 border-bottom border-glass-light notification-item-dropdown <?php echo !$notif['is_read'] ? 'bg-glass-active' : 'opacity-75'; ?>">
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <small class="fw-bold text-<?php echo $notif['type'] === 'danger' ? 'red' : ($notif['type'] === 'success' ? 'green' : ($notif['type'] === 'warning' ? 'gold' : 'cyan')); ?>">
+                                                <?php echo htmlspecialchars($notif['title']); ?>
+                                            </small>
+                                            <span class="smaller text-muted-custom"><?php echo date('H:i', strtotime($notif['created_at'])); ?></span>
+                                        </div>
+                                        <p class="mb-0 smaller text-light-custom opacity-75 line-clamp-2"><?php echo htmlspecialchars($notif['message']); ?></p>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                        <div class="p-2 text-center border-top border-glass">
+                            <a href="#notificationsCard" class="smaller text-gold text-decoration-none">View All Alerts</a>
+                        </div>
+                    </div>
+                </div>
+
                 <button class="btn btn-outline-luxury" onclick="openQuickAdd()">
                     <i class="bi bi-plus-lg me-2"></i>Quick Add
                 </button>
@@ -220,6 +289,24 @@ try {
                 </button>
             </div>
         </div>
+
+        <?php if ($isLimitReached): ?>
+        <div class="alert alert-soft-warning border-warning border-glass mb-4 animate__animated animate__fadeIn">
+            <div class="d-flex align-items-center">
+                <div class="alert-icon-circle bg-warning text-dark me-3">
+                    <i class="bi bi-hand-index-fill"></i>
+                </div>
+                <div>
+                    <h6 class="alert-heading mb-1 fw-bold">Daily Protection Active</h6>
+                    <p class="mb-0 opacity-75">You've reached your <strong><?php echo $dailyLimit; ?> trade limit</strong> for today. Trading is temporarily disabled to help you maintain discipline and protect your capital.</p>
+                    <div class="mt-2 small d-flex align-items-center gap-2">
+                        <span class="opacity-50">Limit resets in:</span>
+                        <span id="dashboardResetTimer" class="font-monospace fw-bold text-dark">--:--:--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
         
         <!-- Stats Grid -->
         <div class="row g-4 mb-4">
@@ -305,6 +392,39 @@ try {
             
             <!-- Quick Stats Sidebar -->
             <div class="col-lg-4">
+                <!-- System Notifications -->
+                <div class="dashboard-card mb-4" id="notificationsCard">
+                    <div class="card-header-luxury">
+                        <h5 class="card-title-luxury">
+                            <i class="bi bi-bell"></i>
+                            Recent Alerts
+                            <?php if ($unreadCount > 0): ?>
+                                <span class="badge bg-danger rounded-pill ms-2" style="font-size: 0.6em;"><?php echo $unreadCount; ?></span>
+                            <?php endif; ?>
+                        </h5>
+                    </div>
+                    <div class="notification-list p-3">
+                        <?php if (empty($notifications)): ?>
+                            <div class="text-center text-muted-custom py-3">
+                                <i class="bi bi-bell-slash d-block mb-2" style="font-size: 1.5rem;"></i>
+                                No recent alerts
+                            </div>
+                        <?php else: ?>
+                            <?php foreach ($notifications as $notif): ?>
+                                <div class="notification-item mb-3 p-2 rounded <?php echo $notif['is_read'] ? 'opacity-75' : 'bg-glass-active'; ?>" style="border-left: 3px solid var(--tj-<?php echo $notif['type']; ?>);">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <h6 class="mb-0 small fw-bold text-<?php echo $notif['type'] === 'danger' ? 'red' : ($notif['type'] === 'success' ? 'green' : ($notif['type'] === 'warning' ? 'gold' : 'cyan')); ?>">
+                                            <?php echo htmlspecialchars($notif['title']); ?>
+                                        </h6>
+                                        <span class="text-muted-custom ms-2" style="font-size: 0.7rem;"><?php echo date('H:i', strtotime($notif['created_at'])); ?></span>
+                                    </div>
+                                    <p class="mb-0 small text-light opacity-75" style="font-size: 0.8rem;"><?php echo htmlspecialchars($notif['message']); ?></p>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
                 <!-- Performance Chart -->
                 <div class="dashboard-card mb-4">
                     <div class="card-header-luxury">
@@ -1030,6 +1150,20 @@ try {
         let currentTradeId = null;
         let currentTradeScreenshots = [];
 
+        function formatDate(dateStr) {
+            if (!dateStr) return '—';
+            const date = new Date(dateStr.replace(' ', 'T'));
+            if (isNaN(date.getTime())) return dateStr;
+
+            const d = date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+            const t = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+            
+            return `<div class="date-stacked">
+                        <span class="date-main">${d}</span>
+                        <span class="time-sub">${t}</span>
+                    </div>`;
+        }
+
         async function loadRecentTrades() {
             try {
                 const response = await fetch('api/trades/list.php?limit=10');
@@ -1037,38 +1171,35 @@ try {
                 
                 const tbody = document.getElementById('recentTradesBody');
                 if (!data.success || data.trades.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted-custom">No recent trades found.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5 text-muted-custom"><i class="bi bi-journal-x d-block fs-2 mb-2 opacity-50"></i>No recent execution history found.</td></tr>';
                     return;
                 }
 
                 tbody.innerHTML = data.trades.map(trade => {
-                    const pnl = parseFloat(trade.pnl || 0);
+                    const pnl = parseFloat(trade.net_pnl || trade.pnl || 0);
                     const pnlClass = pnl >= 0 ? 'text-green' : 'text-red';
                     const pnlPrefix = pnl >= 0 ? '+' : '';
+                    const currency = trade.account_currency || 'USD';
                     
                     return `
                         <tr>
-                            <td>
-                                <div class="d-flex flex-column">
-                                    <span>${new Date(trade.entry_time).toLocaleDateString()}</span>
-                                    <small class="text-muted-custom" style="font-size: 0.75rem;">
-                                        ${new Date(trade.entry_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                    </small>
-                                </div>
-                            </td>
+                            <td>${formatDate(trade.entry_time)}</td>
                             <td>
                                 <div class="fw-bold text-gold">${trade.instrument_code}</div>
+                                <small class="text-muted-custom smaller opacity-75">${trade.instrument_name || ''}</small>
                             </td>
                             <td>
-                                <span class="badge ${trade.direction === 'LONG' ? 'bg-success-subtle text-green' : 'bg-danger-subtle text-red'} " style="font-size: 0.7rem;">
+                                <span class="${trade.direction === 'LONG' ? 'badge-long' : 'badge-short'}">
                                     ${trade.direction}
                                 </span>
                             </td>
                             <td class="font-monospace">${parseFloat(trade.entry_price).toFixed(trade.entry_price < 1 ? 5 : 2)}</td>
-                            <td class="font-monospace">${trade.exit_price ? parseFloat(trade.exit_price).toFixed(trade.exit_price < 1 ? 5 : 2) : '-'}</td>
-                            <td class="font-monospace fw-bold ${pnlClass}">${pnlPrefix}${pnl.toFixed(2)} ${trade.account_currency}</td>
+                            <td class="font-monospace">${trade.exit_price ? parseFloat(trade.exit_price).toFixed(trade.exit_price < 1 ? 5 : 2) : '—'}</td>
+                            <td class="font-monospace fw-bold ${pnlClass}">
+                                ${pnlPrefix}${pnl.toFixed(2)} <small class="text-muted-custom">${currency}</small>
+                            </td>
                             <td>
-                                <span class="badge bg-luxury text-gold" style="font-size: 0.7rem;">${parseFloat(trade.r_multiple || 0).toFixed(2)}R</span>
+                                <span class="badge bg-glass text-gold border border-glass" style="font-size: 0.7rem;">${parseFloat(trade.r_multiple || 0).toFixed(2)}R</span>
                             </td>
                             <td class="text-end">
                                 <button class="btn btn-action" onclick="viewTrade(${trade.id})" title="View Details">
@@ -1106,106 +1237,178 @@ try {
         }
 
         function renderTradeDetail(trade) {
-            const container = document.getElementById('tradeDetailContent');
-            const pnl = parseFloat(trade.net_pnl || trade.pnl || 0);
-            const pnlClass = pnl >= 0 ? 'text-green' : 'text-red';
-            const priceDecimals = trade.entry_price < 1 ? 5 : 2;
+            const pnlClass = parseFloat(trade.net_pnl) >= 0 ? 'text-green' : 'text-red';
+            const rClass = parseFloat(trade.r_multiple) >= 0 ? 'text-green' : 'text-red';
             const currency = trade.account_currency || 'USD';
-
-            let screenshotsHtml = '';
+            const accountName = trade.account_name || 'Personal';
+            
+            let attachmentsHtml = '';
             if (trade.attachments && trade.attachments.length > 0) {
-                screenshotsHtml = `
-                    <div class="col-12 mt-4">
-                        <h6 class="text-gold mb-3"><i class="bi bi-images me-2"></i>Trade Screenshots (${trade.attachments.length})</h6>
-                        <div class="row g-3">
-                            ${trade.attachments.map(att => {
-                                const imgPath = att.file_path.startsWith('/') ? att.file_path.substring(1) : att.file_path;
-                                return `
-                                    <div class="col-md-4 col-sm-6">
-                                        <div class="screenshot-container">
-                                            <a href="${imgPath}" target="_blank">
-                                                <img src="${imgPath}" class="img-fluid rounded border-luxury" style="cursor: zoom-in;">
-                                            </a>
+                attachmentsHtml = `
+                    <div class="col-12 mt-2">
+                        <div class="glass-card">
+                            <h6 class="text-gold mb-3 d-flex align-items-center">
+                                <i class="bi bi-images me-2"></i>Trade Evidence
+                                <span class="ms-auto badge bg-glass text-muted-custom font-monospace" style="font-size: 0.65rem;">${trade.attachments.length} ATTACHMENTS</span>
+                            </h6>
+                            <div class="row g-3">
+                                ${trade.attachments.map(a => {
+                                    const imgPath = a.file_path.startsWith('/') ? a.file_path.substring(1) : a.file_path;
+                                    return `
+                                        <div class="col-md-4 col-sm-6">
+                                            <div class="screenshot-container shadow-sm border-luxury rounded overflow-hidden">
+                                                <a href="${imgPath}" target="_blank">
+                                                    <img src="${imgPath}" class="img-fluid w-100" style="cursor: zoom-in; transition: transform 0.3s ease;">
+                                                </a>
+                                            </div>
                                         </div>
-                                    </div>
-                                `;
-                            }).join('')}
+                                    `;
+                                }).join('')}
+                            </div>
                         </div>
                     </div>
                 `;
             } else {
-                screenshotsHtml = `
-                    <div class="col-12 mt-4">
-                        <div class="glass-card text-center py-4">
-                            <i class="bi bi-image text-muted d-block mb-2" style="font-size: 2rem;"></i>
-                            <p class="text-muted-custom mb-0">No screenshots attached.</p>
+                attachmentsHtml = `
+                    <div class="col-12 mt-2">
+                        <div class="glass-card text-center py-5 border-dashed">
+                            <i class="bi bi-camera-video text-muted d-block mb-3 opacity-25" style="font-size: 2.5rem;"></i>
+                            <p class="text-muted-custom mb-0 small text-uppercase letter-spacing-1">Visual documentation unavailable for this execution</p>
                         </div>
                     </div>
                 `;
             }
+            
+            document.getElementById('tradeDetailContent').innerHTML = `
+                <div class="row g-3">
+                    <!-- Left Column: Core Data -->
+                    <div class="col-md-7">
+                        <div class="glass-card h-100">
+                            <div class="d-flex justify-content-between align-items-start mb-4">
+                                <div>
+                                    <h4 class="text-gold mb-1 font-monospace">${trade.instrument_code || 'N/A'}</h4>
+                                    <div class="d-flex gap-2 align-items-center">
+                                        <span class="${trade.direction === 'LONG' ? 'badge-long' : 'badge-short'} px-3">${trade.direction}</span>
+                                        <span class="text-muted-custom smaller border-start ps-2">${accountName}</span>
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <div class="text-muted-custom smaller text-uppercase">Execution ID</div>
+                                    <div class="font-monospace small text-gold">#TRD-${String(trade.id).padStart(5, '0')}</div>
+                                </div>
+                            </div>
 
-            container.innerHTML = `
-                <div class="row g-4">
-                    <div class="col-md-4">
-                        <div class="detail-card">
-                            <label>Instrument</label>
-                            <div class="value text-gold">${trade.instrument_code}</div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="detail-card">
-                            <label>Direction</label>
-                            <div class="value ${trade.direction === 'LONG' ? 'text-green' : 'text-red'}">${trade.direction}</div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="detail-card">
-                            <label>Account</label>
-                            <div class="value">${trade.account_name || 'Personal'} (${currency})</div>
+                            <div class="row g-4 mt-2">
+                                <div class="col-6 col-sm-4 border-end border-glass">
+                                    <small class="text-muted-custom d-block text-uppercase smaller mb-1">Entry Quote</small>
+                                    <h5 class="mb-0 font-monospace">${parseFloat(trade.entry_price).toFixed(trade.entry_price < 1 ? 5 : 2)}</h5>
+                                </div>
+                                <div class="col-6 col-sm-4 border-end border-glass">
+                                    <small class="text-muted-custom d-block text-uppercase smaller mb-1">Exit Quote</small>
+                                    <h5 class="mb-0 font-monospace">${trade.exit_price ? parseFloat(trade.exit_price).toFixed(trade.exit_price < 1 ? 5 : 2) : '—'}</h5>
+                                </div>
+                                <div class="col-12 col-sm-4">
+                                    <small class="text-muted-custom d-block text-uppercase smaller mb-1">Position Size</small>
+                                    <h5 class="mb-0 font-monospace">${trade.position_size} <span class="smaller text-muted-custom font-sans">units</span></h5>
+                                </div>
+                            </div>
+
+                            <hr class="my-4 opacity-10">
+
+                            <div class="row g-3">
+                                <div class="col-6">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <i class="bi bi-clock-history text-cyan"></i>
+                                        <small class="text-muted-custom text-uppercase smaller">Time of Entry</small>
+                                    </div>
+                                    <div class="ps-4 fw-medium">${formatDate(trade.entry_time)}</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <i class="bi bi-clock text-pink"></i>
+                                        <small class="text-muted-custom text-uppercase smaller">Time of Exit</small>
+                                    </div>
+                                    <div class="ps-4 fw-medium">${trade.exit_time ? formatDate(trade.exit_time) : '<span class="text-warning">ACTIVE</span>'}</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="col-md-3">
-                        <div class="detail-card">
-                            <label>Entry Price</label>
-                            <div class="value">${parseFloat(trade.entry_price).toFixed(priceDecimals)}</div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="detail-card">
-                            <label>Exit Price</label>
-                            <div class="value">${trade.exit_price ? parseFloat(trade.exit_price).toFixed(priceDecimals) : '-'}</div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="detail-card">
-                            <label>P&L</label>
-                            <div class="value ${pnlClass}">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} ${currency}</div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="detail-card">
-                            <label>R-Multiple</label>
-                            <div class="value text-gold">${parseFloat(trade.r_multiple || 0).toFixed(2)}R</div>
+                    <!-- Right Column: Performance Metrics -->
+                    <div class="col-md-5">
+                        <div class="glass-card glass-card-cyan h-100">
+                            <h6 class="text-cyan mb-4 d-flex align-items-center">
+                                <i class="bi bi-cpu me-2"></i>Performance Analysis
+                            </h6>
+                            
+                            <div class="p-3 rounded bg-glass mb-4 border-start border-4 ${parseFloat(trade.net_pnl) >= 0 ? 'border-green' : 'border-red'}">
+                                <small class="text-muted-custom d-block text-uppercase mb-1">Net Realized P&L</small>
+                                <div class="d-flex align-items-baseline gap-2">
+                                    <h2 class="${pnlClass} mb-0 font-monospace">${parseFloat(trade.net_pnl).toFixed(2)}</h2>
+                                    <span class="text-muted-custom small">${currency}</span>
+                                </div>
+                            </div>
+
+                            <div class="row g-3 text-center">
+                                <div class="col-6">
+                                    <div class="border border-glass rounded p-3">
+                                        <small class="text-muted-custom d-block smaller text-uppercase mb-1">R-Score</small>
+                                        <h4 class="${rClass} mb-0 font-monospace">${parseFloat(trade.r_multiple).toFixed(2)}R</h4>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="border border-glass rounded p-3">
+                                        <small class="text-muted-custom d-block smaller text-uppercase mb-1">Status</small>
+                                        <span class="badge ${trade.status === 'OPEN' ? 'bg-warning-subtle text-warning border border-warning' : 'bg-success-subtle text-green border border-green'} text-uppercase font-monospace" style="font-size: 0.7rem;">${trade.status}</span>
+                                    </div>
+                                </div>
+                                <div class="col-12 mt-3">
+                                    <div class="d-flex justify-content-between px-2">
+                                        <span class="smaller text-muted-custom">GROSS P&L</span>
+                                        <span class="smaller font-monospace text-white">${parseFloat(trade.gross_pnl).toFixed(2)} ${currency}</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between px-2 mt-1">
+                                        <span class="smaller text-muted-custom">TOTAL FEES</span>
+                                        <span class="smaller font-monospace text-red">-${parseFloat(trade.fees).toFixed(2)} ${currency}</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    ${screenshotsHtml}
+                    <!-- Full Width: Documentation Section -->
+                    <div class="col-12">
+                        <div class="glass-card">
+                            <h6 class="text-gold mb-3 d-flex align-items-center">
+                                <i class="bi bi-pencil-square me-2"></i>Documentation & Methodology
+                            </h6>
+                            <div class="row g-4">
+                                <div class="col-md-4 border-end border-glass">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <div class="bullet bullet-gold"></div>
+                                        <small class="text-muted-custom text-uppercase smaller">Hypothesis / Entry Reason</small>
+                                    </div>
+                                    <p class="mb-0 text-white-50 small pe-3">${trade.entry_reason || 'Methodology not documented.'}</p>
+                                </div>
+                                <div class="col-md-4 border-end border-glass">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <div class="bullet bullet-cyan"></div>
+                                        <small class="text-muted-custom text-uppercase smaller">Exit Rationale</small>
+                                    </div>
+                                    <p class="mb-0 text-white-50 small pe-3">${trade.exit_reason || 'Manual liquidation or automation.'}</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <div class="bullet bullet-purple"></div>
+                                        <small class="text-muted-custom text-uppercase smaller">Lessons & Insights</small>
+                                    </div>
+                                    <p class="mb-0 text-white-50 small italic opacity-75">${trade.lessons_learned || '—'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-                    <div class="col-md-6">
-                        <div class="detail-card h-100">
-                            <label>Notes & Strategy</label>
-                            <div class="mb-2"><span class="text-gold">Strategy:</span> ${trade.strategy_name || 'N/A'}</div>
-                            <div class="mb-2"><span class="text-gold">Entry Reason:</span><br>${trade.entry_reason || '-'}</div>
-                            <div><span class="text-gold">Exit Reason:</span><br>${trade.exit_reason || '-'}</div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="detail-card h-100">
-                            <label>Lessons Learned</label>
-                            <div>${trade.lessons_learned || '-'}</div>
-                        </div>
-                    </div>
+                    ${attachmentsHtml}
                 </div>
             `;
         }
@@ -1390,6 +1593,60 @@ try {
 
         // Initialize dashboard
         loadRecentTrades();
+
+        // Dashboard Limit Reset Timer
+        <?php if ($isLimitReached): ?>
+        (function() {
+            const timerSpan = document.getElementById('dashboardResetTimer');
+            if (!timerSpan) return;
+
+            function updateDashboardTimer() {
+                const now = new Date();
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                tomorrow.setHours(0, 0, 0, 0);
+                
+                const diff = tomorrow - now;
+                if (diff <= 0) {
+                    location.reload();
+                    return;
+                }
+                
+                const h = Math.floor(diff / (1000 * 60 * 60));
+                const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const s = Math.floor((diff % (1000 * 60)) / 1000);
+                
+                timerSpan.innerText = 
+                    String(h).padStart(2, '0') + ':' + 
+                    String(m).padStart(2, '0') + ':' + 
+                    String(s).padStart(2, '0');
+            }
+            
+            updateDashboardTimer();
+            setInterval(updateDashboardTimer, 1000);
+        })();
+        <?php endif; ?>
+    </script>
+    <script>
+        // Mark notifications as read after 3 seconds
+        setTimeout(async () => {
+            const badge = document.querySelector('#notificationsCard .badge');
+            if (badge) {
+                try {
+                    const response = await fetch('api/user/mark_notifications_read.php');
+                    const data = await response.json();
+                    if (data.success) {
+                        badge.remove();
+                        document.querySelectorAll('.notification-item').forEach(item => {
+                            item.classList.remove('bg-glass-active');
+                            item.classList.add('opacity-75');
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error marking notifications as read:', error);
+                }
+            }
+        }, 5000);
     </script>
 </body>
 </html>

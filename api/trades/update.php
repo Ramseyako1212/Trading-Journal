@@ -6,6 +6,7 @@
 header('Content-Type: application/json');
 
 require_once '../../config/database.php';
+require_once '../../includes/notifications.php';
 
 if (!isset($_SESSION['logged_in']) || !$_SESSION['logged_in']) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
@@ -29,7 +30,7 @@ try {
     $pdo = getConnection();
     
     // Verify trade belongs to user
-    $checkStmt = $pdo->prepare("SELECT id, instrument_id FROM trades WHERE id = ? AND user_id = ?");
+    $checkStmt = $pdo->prepare("SELECT id, instrument_id, status FROM trades WHERE id = ? AND user_id = ?");
     $checkStmt->execute([$tradeId, $userId]);
     $trade = $checkStmt->fetch();
     
@@ -37,6 +38,8 @@ try {
         echo json_encode(['success' => false, 'message' => 'Trade not found']);
         exit;
     }
+    
+    $oldStatus = $trade['status'];
     
     // Get form data
     $accountId = filter_input(INPUT_POST, 'account_id', FILTER_SANITIZE_NUMBER_INT);
@@ -118,12 +121,28 @@ try {
         $emotionalState, $status, $tradeId, $userId
     ]);
     
+    // Send notification if trade just closed
+    if ($status === 'CLOSED' && $oldStatus !== 'CLOSED') {
+        $instName = 'Trade';
+        $instSearch = $pdo->prepare("SELECT code FROM instruments WHERE id = ?");
+        $instSearch->execute([$instrumentId]);
+        $inst = $instSearch->fetch();
+        if ($inst) $instName = $inst['code'];
+
+        notifyTradeClosed($userId, [
+            'instrument' => $instName,
+            'direction' => $direction,
+            'net_pnl' => $netPnl,
+            'exit_time' => $exitTime ?: date('Y-m-d H:i:s')
+        ]);
+    }
+
     // Handle new file uploads
     if (!empty($_FILES['screenshots']['name'][0])) {
-        $uploadDir = '../../uploads/trades/' . $userId . '/';
+        $uploadDir = UPLOAD_PATH . 'trades/' . $userId . '/';
         
         if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
+            mkdir($uploadDir, 0777, true);
         }
         
         $attachmentStmt = $pdo->prepare("

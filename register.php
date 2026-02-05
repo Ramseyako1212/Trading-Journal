@@ -140,7 +140,7 @@
             <div class="d-flex flex-column gap-3">
                 <!-- Google Login Button -->
                 <div id="g_id_onload"
-                     data-client_id="54002100824-tnk5rgnp09ha4cu8kfuh5071ii1st4tn.apps.googleusercontent.com"
+                     data-client_id="<?php echo getenv('GOOGLE_CLIENT_ID'); ?>"
                      data-context="signup"
                      data-ux_mode="popup"
                      data-callback="handleGoogleResponse"

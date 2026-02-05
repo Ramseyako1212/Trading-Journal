@@ -18,11 +18,18 @@
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="assets/css/style.css">
+    
+    <!-- Animate On Scroll -->
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
 </head>
 <body>
     <!-- Animated Background -->
     <div class="bg-animated"></div>
     <div class="grid-overlay"></div>
+    
+    <!-- 2026 Background Blobs -->
+    <div class="spatial-blob blob-gold"></div>
+    <div class="spatial-blob blob-cyan"></div>
     
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-luxury fixed-top" id="mainNav">
@@ -152,9 +159,9 @@
     </section>
     
     <!-- Features Section -->
-    <section class="features-section" id="features">
+    <section class="features-section py-6" id="features">
         <div class="container">
-            <div class="text-center mb-5">
+            <div class="text-center mb-5" data-aos="fade-up">
                 <h6 class="text-cyan text-uppercase fw-semibold mb-3" style="letter-spacing: 0.2em;">Features</h6>
                 <h2 class="display-5 fw-bold mb-4">Everything You Need to <span class="text-gold">Excel</span></h2>
                 <p class="text-secondary mx-auto" style="max-width: 600px;">
@@ -162,77 +169,62 @@
                 </p>
             </div>
             
-            <div class="row g-4">
-                <div class="col-md-6 col-lg-4">
-                    <div class="glass-card h-100 feature-card">
-                        <div class="feature-icon">
-                            <i class="bi bi-journal-richtext"></i>
-                        </div>
-                        <h4 class="feature-title">Smart Journaling</h4>
-                        <p class="feature-description">
-                            Log every trade with detailed entry/exit, screenshots, notes, and emotional state tracking.
-                        </p>
+            <div class="bento-grid">
+                <!-- Large Card -->
+                <div class="bento-item large" data-aos="fade-right" data-aos-delay="100">
+                    <div class="feature-icon mb-4" style="font-size: 2.5rem; color: var(--gold);">
+                        <i class="bi bi-journal-richtext"></i>
+                    </div>
+                    <h3 class="fw-bold mb-3">Smart Journaling</h3>
+                    <p class="text-secondary">
+                        Log every trade with detailed entry/exit prices, position sizing, execution quality, and emotional state tracking. Our smart engine automatically calculates R-multiples and commissions.
+                    </p>
+                    <div class="mt-4 p-3 bg-glass rounded-4 border-glass d-inline-flex gap-3 align-items-center">
+                        <div class="text-green small"><i class="bi bi-check-circle-fill me-1"></i> Auto P&L</div>
+                        <div class="text-cyan small"><i class="bi bi-check-circle-fill me-1"></i> Risk Analysis</div>
                     </div>
                 </div>
                 
-                <div class="col-md-6 col-lg-4">
-                    <div class="glass-card h-100 feature-card glass-card-cyan">
-                        <div class="feature-icon">
-                            <i class="bi bi-bar-chart-line"></i>
-                        </div>
-                        <h4 class="feature-title">Advanced Analytics</h4>
-                        <p class="feature-description">
-                            Interactive charts showing win rate, expectancy, drawdown, and performance over time.
-                        </p>
+                <!-- Medium Card -->
+                <div class="bento-item medium" data-aos="fade-left" data-aos-delay="200">
+                    <div class="feature-icon mb-3" style="font-size: 2rem; color: var(--cyan);">
+                        <i class="bi bi-bar-chart-line"></i>
+                    </div>
+                    <h4 class="fw-bold">Advanced Analytics</h4>
+                    <p class="text-secondary small">
+                        Interactive charts showing win rate, expectancy, drawdown, and performance metrics across different time sessions.
+                    </p>
+                </div>
+                
+                <!-- Tall Card -->
+                <div class="bento-item tall" data-aos="fade-up" data-aos-delay="300">
+                    <div class="feature-icon mb-3" style="font-size: 2rem; color: var(--gold);">
+                        <i class="bi bi-calendar-week"></i>
+                    </div>
+                    <h4 class="fw-bold">Performance Calendar</h4>
+                    <p class="text-secondary small">
+                        Track your daily consistency with a visual heat map. Instantly see your best trading days and win/loss patterns.
+                    </p>
+                    <div class="mt-auto pt-4 text-center opacity-50">
+                        <i class="bi bi-grid-3x3-gap" style="font-size: 3rem;"></i>
                     </div>
                 </div>
                 
-                <div class="col-md-6 col-lg-4">
-                    <div class="glass-card h-100 feature-card">
-                        <div class="feature-icon">
-                            <i class="bi bi-droplet-half"></i>
-                        </div>
-                        <h4 class="feature-title">Crude Oil Focus</h4>
-                        <p class="feature-description">
-                            Built for CL/MCL traders with contract roll tracking, EIA calendar, and session analysis.
-                        </p>
+                <!-- Small Cards -->
+                <div class="bento-item" data-aos="fade-up" data-aos-delay="400">
+                    <div class="feature-icon mb-3" style="font-size: 1.5rem; color: var(--cyan);">
+                        <i class="bi bi-camera"></i>
                     </div>
+                    <h5 class="fw-bold smaller">Screenshots</h5>
+                    <p class="text-secondary smaller">Automatic gallery of your executions.</p>
                 </div>
                 
-                <div class="col-md-6 col-lg-4">
-                    <div class="glass-card h-100 feature-card">
-                        <div class="feature-icon">
-                            <i class="bi bi-camera"></i>
-                        </div>
-                        <h4 class="feature-title">Screenshot Capture</h4>
-                        <p class="feature-description">
-                            Upload chart screenshots with annotations to review your setups and executions.
-                        </p>
+                <div class="bento-item" data-aos="fade-up" data-aos-delay="500">
+                    <div class="feature-icon mb-3" style="font-size: 1.5rem; color: var(--gold);">
+                        <i class="bi bi-lightning-charge"></i>
                     </div>
-                </div>
-                
-                <div class="col-md-6 col-lg-4">
-                    <div class="glass-card h-100 feature-card glass-card-cyan">
-                        <div class="feature-icon">
-                            <i class="bi bi-calculator"></i>
-                        </div>
-                        <h4 class="feature-title">R-Multiple Tracking</h4>
-                        <p class="feature-description">
-                            Automatic R calculation based on your risk. Track expectancy and optimize risk management.
-                        </p>
-                    </div>
-                </div>
-                
-                <div class="col-md-6 col-lg-4">
-                    <div class="glass-card h-100 feature-card">
-                        <div class="feature-icon">
-                            <i class="bi bi-calendar-week"></i>
-                        </div>
-                        <h4 class="feature-title">Calendar View</h4>
-                        <p class="feature-description">
-                            Visual calendar showing daily P&L, win streaks, and performance patterns.
-                        </p>
-                    </div>
+                    <h5 class="fw-bold smaller">Speed Sync</h5>
+                    <p class="text-secondary smaller">Real-time MT5 integration.</p>
                 </div>
             </div>
         </div>
@@ -442,8 +434,18 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     
+    <!-- Animate On Scroll JS -->
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+    
     <!-- Custom JS -->
     <script>
+        // Initialize AOS
+        AOS.init({
+            duration: 1000,
+            once: true,
+            easing: 'ease-out-cubic'
+        });
+
         // Navbar scroll effect
         window.addEventListener('scroll', function() {
             const navbar = document.getElementById('mainNav');

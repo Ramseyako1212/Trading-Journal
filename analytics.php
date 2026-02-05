@@ -103,15 +103,15 @@ try {
     
     // Performance by instrument
     $instrumentQuery = $pdo->prepare("
-        SELECT i.code, i.name,
+        SELECT COALESCE(i.code, 'Unknown') as code, COALESCE(i.name, 'Unknown') as name,
                COUNT(*) as trade_count,
                SUM(t.net_pnl) as total_pnl,
                AVG(t.r_multiple) as avg_r,
                SUM(CASE WHEN t.net_pnl > 0 THEN 1 ELSE 0 END) as wins
         FROM trades t
-        JOIN instruments i ON t.instrument_id = i.id
+        LEFT JOIN instruments i ON t.instrument_id = i.id
         WHERE t.user_id = ? AND t.status = 'CLOSED'
-        GROUP BY i.id
+        GROUP BY t.instrument_id
         ORDER BY total_pnl DESC
     ");
     $instrumentQuery->execute([$userId]);
@@ -119,15 +119,15 @@ try {
     
     // Performance by strategy
     $strategyQuery = $pdo->prepare("
-        SELECT s.name, s.color,
+        SELECT COALESCE(s.name, 'No Strategy') as name, COALESCE(s.color, '#6c757d') as color,
                COUNT(*) as trade_count,
                SUM(t.net_pnl) as total_pnl,
                AVG(t.r_multiple) as avg_r,
                SUM(CASE WHEN t.net_pnl > 0 THEN 1 ELSE 0 END) as wins
         FROM trades t
-        JOIN strategies s ON t.strategy_id = s.id
+        LEFT JOIN strategies s ON t.strategy_id = s.id
         WHERE t.user_id = ? AND t.status = 'CLOSED'
-        GROUP BY s.id
+        GROUP BY t.strategy_id
         ORDER BY total_pnl DESC
     ");
     $strategyQuery->execute([$userId]);
@@ -448,7 +448,7 @@ try {
                     </div>
                     <?php else: ?>
                     <div class="table-responsive">
-                        <table class="table table-sm mb-0">
+                        <table class="table-luxury table-sm mb-0">
                             <thead>
                                 <tr class="text-muted-custom small">
                                     <th class="border-0">Instrument</th>
@@ -460,9 +460,10 @@ try {
                             <tbody>
                                 <?php foreach ($instrumentData as $inst): 
                                     $instWinRate = $inst['trade_count'] > 0 ? ($inst['wins'] / $inst['trade_count']) * 100 : 0;
+                                    $displayName = !empty($inst['code']) ? $inst['code'] : $inst['name'];
                                 ?>
                                 <tr>
-                                    <td class="border-0 text-white fw-semibold"><?php echo $inst['code']; ?></td>
+                                    <td class="border-0 text-white fw-semibold"><?php echo htmlspecialchars($displayName); ?></td>
                                     <td class="border-0 text-end text-secondary"><?php echo $inst['trade_count']; ?></td>
                                     <td class="border-0 text-end"><?php echo number_format($instWinRate, 0); ?>%</td>
                                     <td class="border-0 text-end <?php echo $inst['total_pnl'] >= 0 ? 'text-green' : 'text-red'; ?>">
@@ -493,7 +494,7 @@ try {
                     </div>
                     <?php else: ?>
                     <div class="table-responsive">
-                        <table class="table table-sm mb-0">
+                        <table class="table-luxury table-sm mb-0">
                             <thead>
                                 <tr class="text-muted-custom small">
                                     <th class="border-0">Strategy</th>

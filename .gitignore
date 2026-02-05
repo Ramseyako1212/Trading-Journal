@@ -1,16 +1,23 @@
 # Trading Journal - Git Ignore
 
-# 1. SECURITY: Never upload your database passwords
+# 1. SECURITY: Never upload your database passwords or API keys
 /config/database.php
+.env
 
-# 2. PRIVACY: Don't upload your personal trade screenshots
+# 2. PRIVACY: Don't upload your personal trade screenshots or database backups
 /uploads/
+*.sql
+setup.php
+debug_bypass.php
+fix_db.php
+fix_sync.php
+diag_users.php
 
 # 3. CLEANLINESS: Don't upload computer "junk" files
 *.log
 .DS_Store
 Thumbs.db
 
-# 4. TOOLS: Don't upload library folders (if you use Composer later)
+# 4. TOOLS: Don't upload library folders
 /vendor/
 node_modules/

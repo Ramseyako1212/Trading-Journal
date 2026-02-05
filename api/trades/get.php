@@ -31,6 +31,7 @@ try {
                i.tick_value,
                s.name as strategy_name,
                s.color as strategy_color,
+               a.name as account_name,
                a.currency as account_currency
         FROM trades t
         LEFT JOIN instruments i ON t.instrument_id = i.id
@@ -49,8 +50,8 @@ try {
     }
     
     // Get attachments
-    $attachQuery = $pdo->prepare("SELECT id, filename, original_name, file_path, file_type FROM attachments WHERE trade_id = ?");
-    $attachQuery->execute([$tradeId]);
+    $attachQuery = $pdo->prepare("SELECT id, filename, original_name, file_path, file_type FROM attachments WHERE trade_id = ? AND user_id = ?");
+    $attachQuery->execute([$tradeId, $userId]);
     $trade['attachments'] = $attachQuery->fetchAll();
     
     echo json_encode([

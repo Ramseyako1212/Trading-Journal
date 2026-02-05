@@ -25,7 +25,7 @@ function verifyGoogleToken($token) {
 
 $payload = verifyGoogleToken($id_token);
 
-if (!$payload || isset($payload['error'])) {
+if (!$payload || isset($payload['error']) || $payload['aud'] !== getenv('GOOGLE_CLIENT_ID')) {
     echo json_encode(['success' => false, 'message' => 'Invalid Google token']);
     exit;
 }

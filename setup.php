@@ -4,10 +4,13 @@
  * Run this once to set up the database
  */
 
-// Database configuration
-$host = 'localhost';
-$user = 'root';
-$pass = '';
+require_once 'config/database.php';
+
+// Database configuration from environment
+$host = DB_HOST;
+$user = DB_USER;
+$pass = DB_PASS;
+$dbname = DB_NAME;
 
 echo "<style>
     body { 
@@ -58,11 +61,11 @@ try {
     echo "<p class='success'>✅ Connected to MySQL successfully</p>";
     
     // Create database
-    $pdo->exec("CREATE DATABASE IF NOT EXISTS trading_journal CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-    echo "<p class='success'>✅ Database 'trading_journal' created/verified</p>";
+    $pdo->exec("CREATE DATABASE IF NOT EXISTS $dbname CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    echo "<p class='success'>✅ Database '$dbname' created/verified</p>";
     
     // Select database
-    $pdo->exec("USE trading_journal");
+    $pdo->exec("USE $dbname");
     
     // Read and execute schema
     $schemaFile = __DIR__ . '/database/schema.sql';
@@ -182,7 +185,7 @@ try {
     echo "<p>Please make sure:</p>";
     echo "<ul>";
     echo "<li>MySQL is running in Laragon</li>";
-    echo "<li>Database credentials are correct in <code>config/database.php</code></li>";
+    echo "<li>Database credentials are correct in <code>.env</code> or <code>config/database.php</code></li>";
     echo "</ul>";
     echo "</div>";
 }

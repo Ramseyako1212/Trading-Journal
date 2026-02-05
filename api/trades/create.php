@@ -6,6 +6,7 @@
 header('Content-Type: application/json');
 
 require_once '../../config/database.php';
+require_once '../../includes/notifications.php';
 
 // Check authentication
 if (!isset($_SESSION['logged_in']) || !$_SESSION['logged_in']) {
@@ -20,8 +21,38 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $userId = $_SESSION['user_id'];
 
-// Get form data
-$accountId = filter_input(INPUT_POST, 'account_id', FILTER_SANITIZE_NUMBER_INT);
+try {
+    $pdo = getConnection();
+    
+    // STRICT ENFORCEMENT: Check if today's checklist was passed
+    $checkDate = date('Y-m-d');
+    $checkStmt = $pdo->prepare("SELECT passed FROM daily_checklists WHERE user_id = ? AND check_date = ?");
+    $checkStmt->execute([$userId, $checkDate]);
+    $checklist = $checkStmt->fetch();
+
+    if (!$checklist || !$checklist['passed']) {
+        echo json_encode(['success' => false, 'message' => 'Trading restricted. Please complete your daily readiness check first.']);
+        exit;
+    }
+
+    // NEW: Check daily trade limit
+    $userStmt = $pdo->prepare("SELECT daily_trade_limit FROM users WHERE id = ?");
+    $userStmt->execute([$userId]);
+    $user = $userStmt->fetch();
+    $limit = $user['daily_trade_limit'] ?? 2;
+
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE user_id = ? AND DATE(entry_time) = CURDATE() AND status != 'CANCELLED'");
+    $countStmt->execute([$userId]);
+    $todayCount = $countStmt->fetchColumn();
+
+    if ($todayCount >= $limit) {
+        notifyOvertrading($userId, $todayCount, $limit);
+        echo json_encode(['success' => false, 'message' => "Daily trade limit reached ($limit). Protect your capital and stop for today."]);
+        exit;
+    }
+
+    // Get form data
+    $accountId = filter_input(INPUT_POST, 'account_id', FILTER_SANITIZE_NUMBER_INT);
 $instrumentId = filter_input(INPUT_POST, 'instrument_id', FILTER_SANITIZE_NUMBER_INT);
 $strategyId = filter_input(INPUT_POST, 'strategy_id', FILTER_SANITIZE_NUMBER_INT) ?: null;
 $direction = $_POST['direction'] ?? 'LONG';
@@ -50,13 +81,26 @@ if (!in_array($direction, ['LONG', 'SHORT'])) {
     exit;
 }
 
-try {
-    $pdo = getConnection();
-    
-    // Get instrument details for P&L calculation
-    $instQuery = $pdo->prepare("SELECT tick_size, tick_value FROM instruments WHERE id = ?");
-    $instQuery->execute([$instrumentId]);
-    $instrument = $instQuery->fetch();
+// Check for duplicates (Search for identical trade content created in the last 10 seconds)
+$dupCheck = $pdo->prepare("
+    SELECT id FROM trades 
+    WHERE user_id = ? 
+    AND instrument_id = ? 
+    AND entry_price = ? 
+    AND direction = ? 
+    AND entry_time = ?
+    AND created_at >= DATE_SUB(NOW(), INTERVAL 10 SECOND)
+");
+$dupCheck->execute([$userId, $instrumentId, $entryPrice, $direction, $entryTime]);
+if ($dupCheck->fetch()) {
+    echo json_encode(['success' => false, 'message' => 'Duplicate trade detected. Please wait a moment.']);
+    exit;
+}
+
+// Get instrument details for P&L calculation
+$instQuery = $pdo->prepare("SELECT tick_size, tick_value FROM instruments WHERE id = ?");
+$instQuery->execute([$instrumentId]);
+$instrument = $instQuery->fetch();
     
     $tickSize = $instrument['tick_size'] ?? 0.01;
     $tickValue = $instrument['tick_value'] ?? 10;
@@ -122,14 +166,30 @@ try {
     ]);
     
     $tradeId = $pdo->lastInsertId();
+
+    // Send notification if trade is created as closed
+    if ($status === 'CLOSED') {
+        $instName = 'Trade';
+        $instSearch = $pdo->prepare("SELECT code FROM instruments WHERE id = ?");
+        $instSearch->execute([$instrumentId]);
+        $inst = $instSearch->fetch();
+        if ($inst) $instName = $inst['code'];
+
+        notifyTradeClosed($userId, [
+            'instrument' => $instName,
+            'direction' => $direction,
+            'net_pnl' => $netPnl,
+            'exit_time' => $exitTime ?: date('Y-m-d H:i:s')
+        ]);
+    }
     
     // Handle file uploads
     if (!empty($_FILES['screenshots']['name'][0])) {
-        $uploadDir = '../../uploads/trades/' . $userId . '/';
+        $uploadDir = UPLOAD_PATH . 'trades/' . $userId . '/';
         
         // Create directory if not exists
         if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
+            mkdir($uploadDir, 0777, true);
         }
         
         $attachmentStmt = $pdo->prepare("

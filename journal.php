@@ -43,6 +43,17 @@ try {
     $accountsQuery = $pdo->prepare("SELECT * FROM accounts WHERE user_id = ? ORDER BY name");
     $accountsQuery->execute([$userId]);
     $accounts = $accountsQuery->fetchAll();
+
+    // NEW: Check for daily trade limit alert
+    $userLimitQuery = $pdo->prepare("SELECT daily_trade_limit FROM users WHERE id = ?");
+    $userLimitQuery->execute([$userId]);
+    $dailyLimit = $userLimitQuery->fetchColumn();
+
+    $todayCountQuery = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE user_id = ? AND DATE(entry_time) = CURDATE() AND status != 'CANCELLED'");
+    $todayCountQuery->execute([$userId]);
+    $todayTradeCount = $todayCountQuery->fetchColumn();
+    
+    $isLimitReached = $todayTradeCount >= $dailyLimit;
     
 } catch (PDOException $e) {
     $error = "Database error: " . $e->getMessage();
@@ -71,6 +82,8 @@ try {
     <div class="bg-animated"></div>
     <div class="grid-overlay"></div>
     
+    <?php include 'includes/checklist_modal.php'; ?>
+
     <!-- Sidebar -->
     <aside class="sidebar-luxury" id="sidebar">
         <div class="sidebar-brand">
@@ -136,10 +149,35 @@ try {
                 <i class="bi bi-plus-circle me-2"></i>New Trade
             </button>
         </div>
+
+        <?php if ($isLimitReached): ?>
+        <div class="alert alert-soft-warning border-warning border-glass mb-4 animate__animated animate__fadeIn">
+            <div class="d-flex align-items-center">
+                <div class="alert-icon-circle bg-warning text-dark me-3">
+                    <i class="bi bi-hand-index-fill"></i>
+                </div>
+                <div>
+                    <h6 class="alert-heading mb-1 fw-bold">Daily Protection Active</h6>
+                    <p class="mb-0 opacity-75">You've reached your <strong><?php echo $dailyLimit; ?> trade limit</strong> for today. Trading is temporarily disabled to help you maintain discipline.</p>
+                    <div class="mt-2 small d-flex align-items-center gap-2 text-dark">
+                        <span class="opacity-50 text-dark">Limit resets in:</span>
+                        <span id="journalResetTimer" class="font-monospace fw-bold">--:--:--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
         
         <!-- Filters -->
         <div class="glass-card mb-4">
             <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label-luxury">Search</label>
+                    <div class="input-group-luxury">
+                        <span class="input-suffix" style="left: 12px; right: auto;"><i class="bi bi-search"></i></span>
+                        <input type="text" id="filterSearch" class="form-luxury ps-5" placeholder="Search trades...">
+                    </div>
+                </div>
                 <div class="col-md-2">
                     <label class="form-label-luxury">Instrument</label>
                     <select id="filterInstrument" class="form-luxury form-select-luxury">
@@ -158,15 +196,15 @@ try {
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <label class="form-label-luxury">Direction</label>
+                <div class="col-md-1">
+                    <label class="form-label-luxury">Side</label>
                     <select id="filterDirection" class="form-luxury form-select-luxury">
                         <option value="">All</option>
-                        <option value="LONG">Long</option>
-                        <option value="SHORT">Short</option>
+                        <option value="LONG">Buy</option>
+                        <option value="SHORT">Sell</option>
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-1">
                     <label class="form-label-luxury">Status</label>
                     <select id="filterStatus" class="form-luxury form-select-luxury">
                         <option value="">All</option>
@@ -174,13 +212,13 @@ try {
                         <option value="CLOSED">Closed</option>
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <label class="form-label-luxury">From Date</label>
-                    <input type="date" id="filterDateFrom" class="form-luxury">
+                <div class="col-md">
+                    <label class="form-label-luxury">From</label>
+                    <input type="date" id="filterDateFrom" class="form-luxury p-1">
                 </div>
-                <div class="col-md-2">
-                    <label class="form-label-luxury">To Date</label>
-                    <input type="date" id="filterDateTo" class="form-luxury">
+                <div class="col-md">
+                    <label class="form-label-luxury">To</label>
+                    <input type="date" id="filterDateTo" class="form-luxury p-1">
                 </div>
             </div>
             <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top" style="border-color: var(--border-glass) !important;">
@@ -679,9 +717,20 @@ try {
         
         // Load trades on page load
         document.addEventListener('DOMContentLoaded', () => {
+            // Populate filters from URL if present
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('instrument_id')) document.getElementById('filterInstrument').value = urlParams.get('instrument_id');
+            if (urlParams.has('strategy_id')) document.getElementById('filterStrategy').value = urlParams.get('strategy_id');
+            if (urlParams.has('direction')) document.getElementById('filterDirection').value = urlParams.get('direction');
+            if (urlParams.has('status')) document.getElementById('filterStatus').value = urlParams.get('status');
+            if (urlParams.has('date_from')) document.getElementById('filterDateFrom').value = urlParams.get('date_from');
+            if (urlParams.has('date_to')) document.getElementById('filterDateTo').value = urlParams.get('date_to');
+            if (urlParams.has('search')) document.getElementById('filterSearch').value = urlParams.get('search');
+
             loadTrades();
             initForm();
             initEditForm();
+            initLiveFilters();
         });
         
         function loadTrades(page = 1) {
@@ -699,6 +748,7 @@ try {
             const status = document.getElementById('filterStatus').value;
             const dateFrom = document.getElementById('filterDateFrom').value;
             const dateTo = document.getElementById('filterDateTo').value;
+            const search = document.getElementById('filterSearch').value;
             
             if (instrumentId) params.append('instrument_id', instrumentId);
             if (strategyId) params.append('strategy_id', strategyId);
@@ -706,17 +756,31 @@ try {
             if (status) params.append('status', status);
             if (dateFrom) params.append('date_from', dateFrom);
             if (dateTo) params.append('date_to', dateTo);
+            if (search) params.append('search', search);
+
+            // Update URL without refreshing the page
+            const newUrl = `${window.location.pathname}?${params.toString()}`;
+            history.pushState({ path: newUrl }, '', newUrl);
             
-            fetch(`api/trades/list.php?${params}`)
-                .then(res => res.json())
+            fetch(`api/trades/list.php?${params.toString()}`)
+                .then(res => {
+                    if (!res.ok) throw new Error('Network response was not ok');
+                    return res.json();
+                })
                 .then(data => {
                     if (data.success) {
                         renderTrades(data.trades);
                         renderPagination(data.pagination);
-                        updateStats(data.trades);
+                        updateStats(data.summary);
+                    } else {
+                        console.error('API Error:', data.message);
+                        alert('Error loading trades: ' + data.message);
                     }
                 })
-                .catch(err => console.error('Error loading trades:', err));
+                .catch(err => {
+                    console.error('Fetch error:', err);
+                    alert('Failed to load trades. Please check your connection.');
+                });
         }
         
         function renderTrades(trades) {
@@ -736,25 +800,28 @@ try {
             
             tbody.innerHTML = trades.map(trade => {
                 const currency = trade.account_currency || 'USD';
+                const netPnl = parseFloat(trade.net_pnl) || 0;
+                const rMultiple = parseFloat(trade.r_multiple) || 0;
+                
                 return `
                 <tr>
                     <td>${formatDate(trade.entry_time)}</td>
                     <td><span class="fw-semibold">${trade.instrument_code || 'N/A'}</span></td>
                     <td><span class="${trade.direction === 'LONG' ? 'badge-long' : 'badge-short'}">${trade.direction}</span></td>
-                    <td>${parseFloat(trade.entry_price).toFixed(2)}</td>
+                    <td>${parseFloat(trade.entry_price || 0).toFixed(2)}</td>
                     <td>${trade.exit_price ? parseFloat(trade.exit_price).toFixed(2) : '—'}</td>
-                    <td>${trade.position_size}</td>
-                    <td class="${parseFloat(trade.net_pnl) >= 0 ? 'pnl-positive' : 'pnl-negative'}">
-                        ${parseFloat(trade.net_pnl) >= 0 ? '+' : ''}${parseFloat(trade.net_pnl).toFixed(2)} <small>${currency}</small>
+                    <td>${trade.position_size || 0}</td>
+                    <td class="${netPnl > 0 ? 'pnl-positive' : (netPnl < 0 ? 'pnl-negative' : '')}">
+                        ${netPnl >= 0 ? '+' : ''}${netPnl.toFixed(2)} <small>${currency}</small>
                     </td>
-                    <td class="${parseFloat(trade.r_multiple) >= 0 ? 'text-green' : 'text-red'}">
-                        ${parseFloat(trade.r_multiple).toFixed(2)}R
+                    <td class="${rMultiple > 0 ? 'text-green' : (rMultiple < 0 ? 'text-red' : '')}">
+                        ${rMultiple.toFixed(2)}R
                     </td>
                     <td>
                         ${trade.strategy_name ? `<span class="badge" style="background: ${trade.strategy_color}20; color: ${trade.strategy_color}">${trade.strategy_name}</span>` : '—'}
                     </td>
                     <td>
-                        <span class="badge ${trade.status === 'OPEN' ? 'bg-warning' : 'bg-success'}">${trade.status}</span>
+                        <span class="badge ${trade.status === 'OPEN' ? 'bg-warning' : (trade.status === 'CLOSED' ? 'bg-success' : 'bg-secondary')}">${trade.status}</span>
                     </td>
                     <td>
                         <button class="btn btn-sm text-gold" onclick="viewTrade(${trade.id})">
@@ -800,34 +867,30 @@ try {
             document.getElementById('pagination').innerHTML = html;
         }
         
-        function updateStats(trades) {
-            const closedTrades = trades.filter(t => t.status === 'CLOSED');
-            const winners = closedTrades.filter(t => parseFloat(t.net_pnl) > 0);
+        function updateStats(summary) {
+            if (!summary) return;
             
-            // Group P&L by currency
-            const pnlTotals = {};
-            closedTrades.forEach(t => {
-                const curr = t.account_currency || 'USD';
-                pnlTotals[curr] = (pnlTotals[curr] || 0) + parseFloat(t.net_pnl);
-            });
-            
-            const avgR = closedTrades.length > 0 
-                ? closedTrades.reduce((sum, t) => sum + parseFloat(t.r_multiple), 0) / closedTrades.length 
-                : 0;
-            const winRate = closedTrades.length > 0 ? (winners.length / closedTrades.length * 100) : 0;
-            
-            document.getElementById('statTotalTrades').textContent = trades.length;
-            document.getElementById('statWinRate').textContent = winRate.toFixed(1) + '%';
+            document.getElementById('statTotalTrades').textContent = summary.total || 0;
+            document.getElementById('statWinRate').textContent = (summary.win_rate || 0).toFixed(1) + '%';
             
             // Display multi-currency P&L
-            const pnlHtml = Object.entries(pnlTotals).map(([curr, total]) => {
-                return `<div>${total >= 0 ? '+' : ''}${total.toFixed(2)} <small>${curr}</small></div>`;
-            }).join('') || '$0.00';
+            const pnlByCurrency = summary.pnl_by_currency || {};
+            const pnlHtml = Object.entries(pnlByCurrency).map(([curr, total]) => {
+                const pnlVal = parseFloat(total) || 0;
+                return `<div>${pnlVal >= 0 ? '+' : ''}${pnlVal.toFixed(2)} <small>${curr}</small></div>`;
+            }).join('') || '—';
             
-            const totalPnlSum = closedTrades.reduce((sum, t) => sum + parseFloat(t.net_pnl), 0);
+            // Determine global color based on first currency found
+            const firstPnl = Object.values(pnlByCurrency)[0];
+            const firstPnlVal = firstPnl !== undefined ? parseFloat(firstPnl) : 0;
+            
+            let pnlClass = 'text-white';
+            if (firstPnlVal > 0) pnlClass = 'text-green';
+            else if (firstPnlVal < 0) pnlClass = 'text-red';
+            
             document.getElementById('statTotalPnl').innerHTML = pnlHtml;
-            document.getElementById('statTotalPnl').className = 'stat-value fs-4 ' + (totalPnlSum >= 0 ? 'text-green' : 'text-red');
-            document.getElementById('statAvgR').textContent = avgR.toFixed(2) + 'R';
+            document.getElementById('statTotalPnl').className = 'stat-value fs-4 ' + pnlClass;
+            document.getElementById('statAvgR').textContent = (summary.avg_r || 0).toFixed(2) + 'R';
         }
         
         function viewTrade(id) {
@@ -847,135 +910,175 @@ try {
             const pnlClass = parseFloat(trade.net_pnl) >= 0 ? 'text-green' : 'text-red';
             const rClass = parseFloat(trade.r_multiple) >= 0 ? 'text-green' : 'text-red';
             const currency = trade.account_currency || 'USD';
+            const accountName = trade.account_name || 'Personal';
             
             let attachmentsHtml = '';
             if (trade.attachments && trade.attachments.length > 0) {
                 attachmentsHtml = `
-                    <div class="col-12 mt-3">
-                        <h6 class="text-gold mb-3"><i class="bi bi-images me-2"></i>Trade Screenshots (${trade.attachments.length})</h6>
-                        <div class="row g-3">
-                            ${trade.attachments.map(a => {
-                                // Ensure path is correct (handle potential leading slashes)
-                                const imgPath = a.file_path.startsWith('/') ? a.file_path.substring(1) : a.file_path;
-                                return `
-                                    <div class="col-md-4 col-sm-6">
-                                        <div class="screenshot-container">
-                                            <a href="${imgPath}" target="_blank">
-                                                <img src="${imgPath}" class="img-fluid rounded border-luxury" style="cursor: zoom-in;">
-                                            </a>
+                    <div class="col-12 mt-2">
+                        <div class="glass-card">
+                            <h6 class="text-gold mb-3 d-flex align-items-center">
+                                <i class="bi bi-images me-2"></i>Trade Evidence
+                                <span class="ms-auto badge bg-glass text-muted-custom font-monospace" style="font-size: 0.65rem;">${trade.attachments.length} ATTACHMENTS</span>
+                            </h6>
+                            <div class="row g-3">
+                                ${trade.attachments.map(a => {
+                                    const imgPath = a.file_path.startsWith('/') ? a.file_path.substring(1) : a.file_path;
+                                    return `
+                                        <div class="col-md-4 col-sm-6">
+                                            <div class="screenshot-container shadow-sm border-luxury rounded overflow-hidden">
+                                                <a href="${imgPath}" target="_blank">
+                                                    <img src="${imgPath}" class="img-fluid w-100" style="cursor: zoom-in; transition: transform 0.3s ease;">
+                                                </a>
+                                            </div>
                                         </div>
-                                    </div>
-                                `;
-                            }).join('')}
+                                    `;
+                                }).join('')}
+                            </div>
                         </div>
                     </div>
                 `;
             } else {
                 attachmentsHtml = `
-                    <div class="col-12 mt-3">
-                        <div class="glass-card text-center py-4">
-                            <i class="bi bi-image text-muted d-block mb-2" style="font-size: 2rem;"></i>
-                            <p class="text-muted-custom mb-0">No screenshots attached to this trade.</p>
+                    <div class="col-12 mt-2">
+                        <div class="glass-card text-center py-5 border-dashed">
+                            <i class="bi bi-camera-video text-muted d-block mb-3 opacity-25" style="font-size: 2.5rem;"></i>
+                            <p class="text-muted-custom mb-0 small text-uppercase letter-spacing-1">Visual documentation unavailable for this execution</p>
                         </div>
                     </div>
                 `;
             }
             
             document.getElementById('tradeDetailContent').innerHTML = `
-                <div class="row g-4">
-                    <div class="col-md-6">
+                <div class="row g-3">
+                    <!-- Left Column: Core Data -->
+                    <div class="col-md-7">
                         <div class="glass-card h-100">
-                            <h6 class="text-gold mb-3"><i class="bi bi-info-circle me-2"></i>Trade Info</h6>
+                            <div class="d-flex justify-content-between align-items-start mb-4">
+                                <div>
+                                    <h4 class="text-gold mb-1 font-monospace">${trade.instrument_code || 'N/A'}</h4>
+                                    <div class="d-flex gap-2 align-items-center">
+                                        <span class="${trade.direction === 'LONG' ? 'badge-long' : 'badge-short'} px-3">${trade.direction}</span>
+                                        <span class="text-muted-custom smaller border-start ps-2">${accountName}</span>
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <div class="text-muted-custom smaller text-uppercase">Execution ID</div>
+                                    <div class="font-monospace small text-gold">#TRD-${String(trade.id).padStart(5, '0')}</div>
+                                </div>
+                            </div>
+
+                            <div class="row g-4 mt-2">
+                                <div class="col-6 col-sm-4 border-end border-glass">
+                                    <small class="text-muted-custom d-block text-uppercase smaller mb-1">Entry Quote</small>
+                                    <h5 class="mb-0 font-monospace">${parseFloat(trade.entry_price).toFixed(trade.entry_price < 1 ? 5 : 2)}</h5>
+                                </div>
+                                <div class="col-6 col-sm-4 border-end border-glass">
+                                    <small class="text-muted-custom d-block text-uppercase smaller mb-1">Exit Quote</small>
+                                    <h5 class="mb-0 font-monospace">${trade.exit_price ? parseFloat(trade.exit_price).toFixed(trade.exit_price < 1 ? 5 : 2) : '—'}</h5>
+                                </div>
+                                <div class="col-12 col-sm-4">
+                                    <small class="text-muted-custom d-block text-uppercase smaller mb-1">Position Size</small>
+                                    <h5 class="mb-0 font-monospace">${trade.position_size} <span class="smaller text-muted-custom font-sans">units</span></h5>
+                                </div>
+                            </div>
+
+                            <hr class="my-4 opacity-10">
+
                             <div class="row g-3">
                                 <div class="col-6">
-                                    <small class="text-muted-custom d-block">Instrument</small>
-                                    <strong>${trade.instrument_code || 'N/A'}</strong>
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <i class="bi bi-clock-history text-cyan"></i>
+                                        <small class="text-muted-custom text-uppercase smaller">Time of Entry</small>
+                                    </div>
+                                    <div class="ps-4 fw-medium">${formatDate(trade.entry_time)}</div>
                                 </div>
                                 <div class="col-6">
-                                    <small class="text-muted-custom d-block">Direction</small>
-                                    <span class="${trade.direction === 'LONG' ? 'badge-long' : 'badge-short'}">${trade.direction}</span>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted-custom d-block">Entry Price</small>
-                                    <strong>${parseFloat(trade.entry_price).toFixed(trade.entry_price < 1 ? 5 : 2)}</strong>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted-custom d-block">Exit Price</small>
-                                    <strong>${trade.exit_price ? parseFloat(trade.exit_price).toFixed(trade.exit_price < 1 ? 5 : 2) : '—'}</strong>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted-custom d-block">Stop Loss</small>
-                                    <strong>${trade.stop_loss ? parseFloat(trade.stop_loss).toFixed(trade.stop_loss < 1 ? 5 : 2) : '—'}</strong>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted-custom d-block">Take Profit</small>
-                                    <strong>${trade.take_profit ? parseFloat(trade.take_profit).toFixed(trade.take_profit < 1 ? 5 : 2) : '—'}</strong>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted-custom d-block">Position Size</small>
-                                    <strong>${trade.position_size}</strong>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted-custom d-block">Fees</small>
-                                    <strong>${parseFloat(trade.fees).toFixed(2)} <small>${currency}</small></strong>
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <i class="bi bi-clock text-pink"></i>
+                                        <small class="text-muted-custom text-uppercase smaller">Time of Exit</small>
+                                    </div>
+                                    <div class="ps-4 fw-medium">${trade.exit_time ? formatDate(trade.exit_time) : '<span class="text-warning">ACTIVE</span>'}</div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="col-md-6">
-                        <div class="glass-card h-100">
-                            <h6 class="text-gold mb-3"><i class="bi bi-graph-up me-2"></i>Performance</h6>
-                            <div class="row g-3">
+                    <!-- Right Column: Performance Metrics -->
+                    <div class="col-md-5">
+                        <div class="glass-card glass-card-cyan h-100">
+                            <h6 class="text-cyan mb-4 d-flex align-items-center">
+                                <i class="bi bi-cpu me-2"></i>Performance Analysis
+                            </h6>
+                            
+                            <div class="p-3 rounded bg-glass mb-4 border-start border-4 ${parseFloat(trade.net_pnl) >= 0 ? 'border-green' : 'border-red'}">
+                                <small class="text-muted-custom d-block text-uppercase mb-1">Net Realized P&L</small>
+                                <div class="d-flex align-items-baseline gap-2">
+                                    <h2 class="${pnlClass} mb-0 font-monospace">${parseFloat(trade.net_pnl).toFixed(2)}</h2>
+                                    <span class="text-muted-custom small">${currency}</span>
+                                </div>
+                            </div>
+
+                            <div class="row g-3 text-center">
                                 <div class="col-6">
-                                    <small class="text-muted-custom d-block">Gross P&L</small>
-                                    <strong class="${pnlClass}">${parseFloat(trade.gross_pnl).toFixed(2)} <small>${currency}</small></strong>
+                                    <div class="border border-glass rounded p-3">
+                                        <small class="text-muted-custom d-block smaller text-uppercase mb-1">R-Score</small>
+                                        <h4 class="${rClass} mb-0 font-monospace">${parseFloat(trade.r_multiple).toFixed(2)}R</h4>
+                                    </div>
                                 </div>
                                 <div class="col-6">
-                                    <small class="text-muted-custom d-block">Net P&L</small>
-                                    <strong class="${pnlClass}" style="font-size: 1.25rem;">${parseFloat(trade.net_pnl).toFixed(2)} <small>${currency}</small></strong>
+                                    <div class="border border-glass rounded p-3">
+                                        <small class="text-muted-custom d-block smaller text-uppercase mb-1">Status</small>
+                                        <span class="badge ${trade.status === 'OPEN' ? 'bg-warning-subtle text-warning border border-warning' : 'bg-success-subtle text-green border border-green'} text-uppercase font-monospace" style="font-size: 0.7rem;">${trade.status}</span>
+                                    </div>
                                 </div>
-                                <div class="col-6">
-                                    <small class="text-muted-custom d-block">R-Multiple</small>
-                                    <strong class="${rClass}">${parseFloat(trade.r_multiple).toFixed(2)}R</strong>
+                                <div class="col-12 mt-3">
+                                    <div class="d-flex justify-content-between px-2">
+                                        <span class="smaller text-muted-custom">GROSS P&L</span>
+                                        <span class="smaller font-monospace text-white">${parseFloat(trade.gross_pnl).toFixed(2)} ${currency}</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between px-2 mt-1">
+                                        <span class="smaller text-muted-custom">TOTAL FEES</span>
+                                        <span class="smaller font-monospace text-red">-${parseFloat(trade.fees).toFixed(2)} ${currency}</span>
+                                    </div>
                                 </div>
-                                <div class="col-6">
-                                    <small class="text-muted-custom d-block">Status</small>
-                                    <span class="badge ${trade.status === 'OPEN' ? 'bg-warning' : 'bg-success'}">${trade.status}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Full Width: Documentation Section -->
+                    <div class="col-12">
+                        <div class="glass-card">
+                            <h6 class="text-gold mb-3 d-flex align-items-center">
+                                <i class="bi bi-pencil-square me-2"></i>Documentation & Methodology
+                            </h6>
+                            <div class="row g-4">
+                                <div class="col-md-4 border-end border-glass">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <div class="bullet bullet-gold"></div>
+                                        <small class="text-muted-custom text-uppercase smaller">Hypothesis / Entry Reason</small>
+                                    </div>
+                                    <p class="mb-0 text-white-50 small pe-3">${trade.entry_reason || 'Methodology not documented.'}</p>
                                 </div>
-                                <div class="col-6">
-                                    <small class="text-muted-custom d-block">Entry Time</small>
-                                    <strong>${formatDate(trade.entry_time)}</strong>
+                                <div class="col-md-4 border-end border-glass">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <div class="bullet bullet-cyan"></div>
+                                        <small class="text-muted-custom text-uppercase smaller">Exit Rationale</small>
+                                    </div>
+                                    <p class="mb-0 text-white-50 small pe-3">${trade.exit_reason || 'Manual liquidation or automation.'}</p>
                                 </div>
-                                <div class="col-6">
-                                    <small class="text-muted-custom d-block">Exit Time</small>
-                                    <strong>${trade.exit_time ? formatDate(trade.exit_time) : '—'}</strong>
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <div class="bullet bullet-purple"></div>
+                                        <small class="text-muted-custom text-uppercase smaller">Lessons & Insights</small>
+                                    </div>
+                                    <p class="mb-0 text-white-50 small italic opacity-75">${trade.lessons_learned || '—'}</p>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     ${attachmentsHtml}
-                    
-                    <div class="col-12">
-                        <div class="glass-card">
-                            <h6 class="text-gold mb-3"><i class="bi bi-journal-text me-2"></i>Notes</h6>
-                            <div class="row g-3">
-                                <div class="col-md-4">
-                                    <small class="text-muted-custom d-block mb-1">Entry Reason</small>
-                                    <p class="mb-0 text-white">${trade.entry_reason || 'No notes'}</p>
-                                </div>
-                                <div class="col-md-4">
-                                    <small class="text-muted-custom d-block mb-1">Exit Reason</small>
-                                    <p class="mb-0 text-white">${trade.exit_reason || 'No notes'}</p>
-                                </div>
-                                <div class="col-md-4">
-                                    <small class="text-muted-custom d-block mb-1">Lessons Learned</small>
-                                    <p class="mb-0 text-white">${trade.lessons_learned || 'No notes'}</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             `;
         }
@@ -1151,17 +1254,75 @@ try {
             document.getElementById('filterStatus').value = '';
             document.getElementById('filterDateFrom').value = '';
             document.getElementById('filterDateTo').value = '';
+            document.getElementById('filterSearch').value = '';
+            
+            // Clear URL parameters
+            const newUrl = window.location.pathname;
+            history.pushState({ path: newUrl }, '', newUrl);
+
             loadTrades(1);
+        }
+
+        function initLiveFilters() {
+            const filterInputs = [
+                'filterInstrument', 'filterStrategy', 'filterDirection', 
+                'filterStatus', 'filterDateFrom', 'filterDateTo'
+            ];
+            
+            filterInputs.forEach(id => {
+                document.getElementById(id).addEventListener('change', () => loadTrades(1));
+            });
+
+            // Debounced search
+            let searchTimeout;
+            document.getElementById('filterSearch').addEventListener('input', () => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => loadTrades(1), 300);
+            });
         }
         
         function exportTrades() {
-            // Simple CSV export
-            window.location.href = 'api/trades/export.php';
+            const params = new URLSearchParams();
+            
+            const instrumentId = document.getElementById('filterInstrument').value;
+            const strategyId = document.getElementById('filterStrategy').value;
+            const direction = document.getElementById('filterDirection').value;
+            const status = document.getElementById('filterStatus').value;
+            const dateFrom = document.getElementById('filterDateFrom').value;
+            const dateTo = document.getElementById('filterDateTo').value;
+            const search = document.getElementById('filterSearch').value;
+            
+            if (instrumentId) params.append('instrument_id', instrumentId);
+            if (strategyId) params.append('strategy_id', strategyId);
+            if (direction) params.append('direction', direction);
+            if (status) params.append('status', status);
+            if (dateFrom) params.append('date_from', dateFrom);
+            if (dateTo) params.append('date_to', dateTo);
+            if (search) params.append('search', search);
+            
+            window.location.href = `api/trades/export.php?${params.toString()}`;
         }
         
         function formatDate(dateStr) {
-            const date = new Date(dateStr);
-            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            if (!dateStr) return '—';
+            const date = new Date(dateStr.replace(' ', 'T'));
+            if (isNaN(date.getTime())) return dateStr;
+
+            const d = date.toLocaleDateString('en-US', { 
+                month: 'numeric', 
+                day: 'numeric', 
+                year: 'numeric' 
+            });
+            const t = date.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: true 
+            });
+            
+            return `<div class="date-stacked">
+                        <span class="date-main">${d}</span>
+                        <span class="time-sub">${t}</span>
+                    </div>`;
         }
         
         function initForm() {
@@ -1260,6 +1421,9 @@ try {
             // Form submission
             document.getElementById('newTradeForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
+                const submitBtn = this.querySelector('button[type="submit"]') || document.querySelector('button[form="newTradeForm"]');
+                if (submitBtn) submitBtn.disabled = true;
+                
                 const formData = new FormData(this);
                 
                 try {
@@ -1273,9 +1437,11 @@ try {
                         loadTrades(1);
                     } else {
                         alert(data.message || 'Error saving trade');
+                        if (submitBtn) submitBtn.disabled = false;
                     }
                 } catch (error) {
                     alert('An error occurred');
+                    if (submitBtn) submitBtn.disabled = false;
                 }
             });
         }
@@ -1300,6 +1466,39 @@ try {
                 }
             });
         }
+
+        // Journal Limit Reset Timer
+        <?php if ($isLimitReached): ?>
+        (function() {
+            const timerSpan = document.getElementById('journalResetTimer');
+            if (!timerSpan) return;
+
+            function updateJournalTimer() {
+                const now = new Date();
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                tomorrow.setHours(0, 0, 0, 0);
+                
+                const diff = tomorrow - now;
+                if (diff <= 0) {
+                    location.reload();
+                    return;
+                }
+                
+                const h = Math.floor(diff / (1000 * 60 * 60));
+                const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const s = Math.floor((diff % (1000 * 60)) / 1000);
+                
+                timerSpan.innerText = 
+                    String(h).padStart(2, '0') + ':' + 
+                    String(m).padStart(2, '0') + ':' + 
+                    String(s).padStart(2, '0');
+            }
+            
+            updateJournalTimer();
+            setInterval(updateJournalTimer, 1000);
+        })();
+        <?php endif; ?>
     </script>
 
     
