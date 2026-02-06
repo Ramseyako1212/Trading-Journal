@@ -152,82 +152,8 @@ try {
     
     <?php include 'includes/checklist_modal.php'; ?>
 
-    <!-- Sidebar -->
-    <aside class="sidebar-luxury" id="sidebar">
-        <div class="sidebar-brand">
-            <a href="dashboard.php" class="brand-logo">
-                <div class="logo-icon">
-                    <i class="bi bi-graph-up-arrow"></i>
-                </div>
-                Trading Journal
-            </a>
-        </div>
-        
-        <nav>
-            <ul class="sidebar-nav">
-                <li class="sidebar-nav-item">
-                    <a href="dashboard.php" class="sidebar-nav-link active">
-                        <i class="bi bi-speedometer2"></i>
-                        Dashboard
-                    </a>
-                </li>
-                <li class="sidebar-nav-item">
-                    <a href="journal.php" class="sidebar-nav-link">
-                        <i class="bi bi-journal-richtext"></i>
-                        Trade Journal
-                    </a>
-                </li>
-                <li class="sidebar-nav-item">
-                    <a href="analytics.php" class="sidebar-nav-link">
-                        <i class="bi bi-bar-chart-line"></i>
-                        Analytics
-                    </a>
-                </li>
-                <li class="sidebar-nav-item">
-                    <a href="calendar.php" class="sidebar-nav-link">
-                        <i class="bi bi-calendar3"></i>
-                        Calendar
-                    </a>
-                </li>
-                <li class="sidebar-nav-item">
-                    <a href="strategies.php" class="sidebar-nav-link">
-                        <i class="bi bi-lightbulb"></i>
-                        Strategies
-                    </a>
-                </li>
-                
-                <li class="mt-4 mb-2">
-                    <small class="text-muted-custom text-uppercase px-3" style="font-size: 0.7rem; letter-spacing: 0.1em;">Account</small>
-                </li>
-                
-                <li class="sidebar-nav-item">
-                    <a href="settings.php" class="sidebar-nav-link">
-                        <i class="bi bi-gear"></i>
-                        Settings
-                    </a>
-                </li>
-                <li class="sidebar-nav-item">
-                    <a href="api/auth/logout.php" class="sidebar-nav-link">
-                        <i class="bi bi-box-arrow-left"></i>
-                        Logout
-                    </a>
-                </li>
-            </ul>
-        </nav>
-        
-        <!-- Quick Stats in Sidebar -->
-        <div class="mt-auto pt-4">
-            <div class="glass-card p-3" style="border-radius: 12px;">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <small class="text-muted-custom">Today's P&L</small>
-                    <span class="text-green fw-bold">+$0</span>
-                </div>
-                <div class="progress" style="height: 4px; background: var(--bg-glass);">
-                    <div class="progress-bar" style="width: 0%; background: var(--gradient-gold);"></div>
-                </div>
-            </div>
-        </div>
-    </aside>
+    <?php include "includes/sidebar.php"; ?>
+
     
     <!-- Main Content -->
     <main class="main-content">
@@ -281,7 +207,7 @@ try {
                     </div>
                 </div>
 
-                <button class="btn btn-outline-luxury" onclick="openQuickAdd()">
+                <button class="btn btn-outline-luxury" data-bs-toggle="modal" data-bs-target="#newTradeModal">
                     <i class="bi bi-plus-lg me-2"></i>Quick Add
                 </button>
                 <button class="btn btn-luxury" data-bs-toggle="modal" data-bs-target="#newTradeModal">
@@ -653,7 +579,46 @@ try {
                                     </div>
                                 </div>
                                 
-                                <div class="form-group">
+                                <div class="form-group mb-3">
+                                    <label class="form-label-luxury">Emotional State</label>
+                                    <select name="emotional_state" id="edit_emotional_state" class="form-luxury form-select-luxury">
+                                        <option value="Neutral">Neutral</option>
+                                        <option value="Confident">Confident</option>
+                                        <option value="Anxious">Anxious</option>
+                                        <option value="Greedy">Greedy</option>
+                                        <option value="Fearful">Fearful</option>
+                                        <option value="Frustrated">Frustrated</option>
+                                        <option value="Disciplined">Disciplined</option>
+                                    </select>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-6">
+                                        <div class="form-group mb-3">
+                                            <label class="form-label-luxury">Setup Quality (1-5)</label>
+                                            <select name="setup_quality" id="edit_setup_quality" class="form-luxury form-select-luxury">
+                                                <option value="1">1</option>
+                                                <option value="2">2</option>
+                                                <option value="3">3</option>
+                                                <option value="4">4</option>
+                                                <option value="5">5</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-group mb-3">
+                                            <label class="form-label-luxury">Execution Quality (1-5)</label>
+                                            <select name="execution_quality" id="edit_execution_quality" class="form-luxury form-select-luxury">
+                                                <option value="1">1</option>
+                                                <option value="2">2</option>
+                                                <option value="3">3</option>
+                                                <option value="4">4</option>
+                                                <option value="5">5</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-group mb-3">
                                     <label class="form-label-luxury">Strategy</label>
                                     <select name="strategy_id" id="edit_strategy_id" class="form-luxury form-select-luxury">
                                         <option value="">Select Strategy</option>
@@ -693,6 +658,12 @@ try {
                                 <div class="form-group">
                                     <label class="form-label-luxury">Lessons Learned</label>
                                     <textarea name="lessons_learned" id="edit_lessons_learned" class="form-luxury" rows="2"></textarea>
+                                </div>
+                                <div class="form-group mb-0 mt-3">
+                                    <div class="form-check form-switch-luxury">
+                                        <input type="checkbox" name="followed_rules" value="1" class="form-check-input" id="edit_followed_rules">
+                                        <label class="form-check-label text-gold small" for="edit_followed_rules">I strictly followed my trading plan</label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -852,15 +823,42 @@ try {
                                 </div>
                                 
                                 <div class="form-group">
-                                    <label class="form-label-luxury">Setup Quality (1-5)</label>
-                                    <div class="rating-stars" id="setupRating">
-                                        <i class="bi bi-star-fill" data-rating="1"></i>
-                                        <i class="bi bi-star-fill" data-rating="2"></i>
-                                        <i class="bi bi-star-fill" data-rating="3"></i>
-                                        <i class="bi bi-star-fill" data-rating="4"></i>
-                                        <i class="bi bi-star-fill" data-rating="5"></i>
+                                    <label class="form-label-luxury">Emotional State</label>
+                                    <select name="emotional_state" class="form-luxury form-select-luxury">
+                                        <option value="Neutral" selected>Neutral</option>
+                                        <option value="Confident">Confident</option>
+                                        <option value="Anxious">Anxious</option>
+                                        <option value="Greedy">Greedy</option>
+                                        <option value="Fearful">Fearful</option>
+                                        <option value="Frustrated">Frustrated</option>
+                                        <option value="Disciplined">Disciplined</option>
+                                    </select>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-6">
+                                        <div class="form-group">
+                                            <label class="form-label-luxury">Setup quality (1-5)</label>
+                                            <select name="setup_quality" class="form-luxury form-select-luxury">
+                                                <option value="1">1 - Poor</option>
+                                                <option value="2">2 - Below Avg</option>
+                                                <option value="3" selected>3 - Average</option>
+                                                <option value="4">4 - Good</option>
+                                                <option value="5">5 - Perfect</option>
+                                            </select>
+                                        </div>
                                     </div>
-                                    <input type="hidden" name="setup_quality" id="setupQualityInput" value="3">
+                                    <div class="col-6">
+                                        <div class="form-group">
+                                            <label class="form-label-luxury">Execution quality (1-5)</label>
+                                            <select name="execution_quality" class="form-luxury form-select-luxury">
+                                                <option value="1">1 - Poor</option>
+                                                <option value="2">2 - Below Avg</option>
+                                                <option value="3" selected>3 - Average</option>
+                                                <option value="4">4 - Good</option>
+                                                <option value="5">5 - Perfect</option>
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
                                 
                                 <div class="form-group">
@@ -908,6 +906,12 @@ try {
                                     <label class="form-check-label text-secondary" for="followedRules">
                                         I followed my trading rules
                                     </label>
+                                </div>
+                                <div class="form-group mb-0 mt-3">
+                                    <div class="form-check form-switch-luxury">
+                                        <input type="checkbox" name="followed_rules" value="1" class="form-check-input" id="new_followed_rules" checked>
+                                        <label class="form-check-label text-gold small" for="new_followed_rules">I strictly followed my trading plan</label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -976,34 +980,16 @@ try {
         document.querySelector('.direction-btn[data-direction="LONG"]').classList.add('active', 'btn-luxury');
         document.querySelector('.direction-btn[data-direction="LONG"]').classList.remove('btn-outline-luxury');
         
-        // Star rating
-        document.querySelectorAll('#setupRating i').forEach(star => {
-            star.addEventListener('click', function() {
-                const rating = this.dataset.rating;
-                document.getElementById('setupQualityInput').value = rating;
-                
-                document.querySelectorAll('#setupRating i').forEach((s, idx) => {
-                    if (idx < rating) {
-                        s.classList.add('active');
-                    } else {
-                        s.classList.remove('active');
-                    }
-                });
-            });
-        });
-        
         // Initialize rating display
-        document.querySelectorAll('#setupRating i').forEach((s, idx) => {
-            if (idx < 3) s.classList.add('active');
-        });
+        // Removed legacy star rating listeners
         
         // P&L Preview Calculator
         function calculatePnL() {
-            const entryPrice = parseFloat(document.querySelector('input[name="entry_price"]')?.value) || 0;
-            const exitPrice = parseFloat(document.querySelector('input[name="exit_price"]')?.value) || 0;
-            const positionSize = parseFloat(document.querySelector('input[name="position_size"]')?.value) || 0;
-            const instrumentId = parseInt(document.querySelector('select[name="instrument_id"]')?.value) || 0;
-            const direction = document.querySelector('input[name="direction"]:checked')?.value || 'LONG';
+            const entryPrice = parseFloat(document.querySelector('#newTradeForm input[name="entry_price"]')?.value) || 0;
+            const exitPrice = parseFloat(document.querySelector('#newTradeForm input[name="exit_price"]')?.value) || 0;
+            const positionSize = parseFloat(document.querySelector('#newTradeForm input[name="position_size"]')?.value) || 0;
+            const instrumentId = parseInt(document.querySelector('#newTradeForm select[name="instrument_id"]')?.value) || 0;
+            const direction = document.querySelector('#newTradeForm input[name="direction"]:checked')?.value || 'LONG';
             
             if (!entryPrice || !exitPrice || !positionSize || !instrumentId || !instrumentTickData[instrumentId]) {
                 document.getElementById('pnlPreview').textContent = '-';
@@ -1036,11 +1022,11 @@ try {
         }
         
         // Attach listeners to P&L calculation
-        document.querySelector('input[name="entry_price"]')?.addEventListener('input', calculatePnL);
-        document.querySelector('input[name="exit_price"]')?.addEventListener('input', calculatePnL);
-        document.querySelector('input[name="position_size"]')?.addEventListener('input', calculatePnL);
-        document.querySelector('select[name="instrument_id"]')?.addEventListener('change', calculatePnL);
-        document.querySelectorAll('input[name="direction"]')?.forEach(radio => radio.addEventListener('change', calculatePnL));
+        document.querySelector('#newTradeForm input[name="entry_price"]')?.addEventListener('input', calculatePnL);
+        document.querySelector('#newTradeForm input[name="exit_price"]')?.addEventListener('input', calculatePnL);
+        document.querySelector('#newTradeForm input[name="position_size"]')?.addEventListener('input', calculatePnL);
+        document.querySelector('#newTradeForm select[name="instrument_id"]')?.addEventListener('change', calculatePnL);
+        document.querySelectorAll('#newTradeForm input[name="direction"]')?.forEach(radio => radio.addEventListener('change', calculatePnL));
         
         // File upload zone
         const uploadZone = document.getElementById('uploadZone');
@@ -1144,7 +1130,8 @@ try {
         // Set current datetime as default
         const now = new Date();
         now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        document.querySelector('input[name="entry_time"]').value = now.toISOString().slice(0, 16);
+        const entryTimeInput = document.querySelector('#newTradeForm input[name="entry_time"]');
+        if (entryTimeInput) entryTimeInput.value = now.toISOString().slice(0, 16);
 
         // --- DASHBOARD TRADE MANAGEMENT ---
         let currentTradeId = null;
@@ -1432,13 +1419,20 @@ try {
                     document.getElementById('edit_take_profit').value = trade.take_profit;
                     document.getElementById('edit_position_size').value = trade.position_size;
                     document.getElementById('edit_fees').value = trade.fees;
+                    document.getElementById('edit_emotional_state').value = trade.emotional_state || 'Neutral';
+                    document.getElementById('edit_setup_quality').value = trade.setup_quality || 3;
+                    document.getElementById('edit_execution_quality').value = trade.execution_quality || 3;
                     document.getElementById('edit_strategy_id').value = trade.strategy_id || '';
                     document.getElementById('edit_entry_reason').value = trade.entry_reason || '';
                     document.getElementById('edit_exit_reason').value = trade.exit_reason || '';
                     document.getElementById('edit_lessons_learned').value = trade.lessons_learned || '';
+                    document.getElementById('edit_followed_rules').checked = parseInt(trade.followed_rules) === 1;
+                    document.getElementById('edit_followed_rules').checked = parseInt(trade.followed_rules) === 1;
 
                     // Direction
-                    document.querySelector(`input[name="direction"][value="${trade.direction}"]`).checked = true;
+                    const editDirInput = document.querySelector(`#editTradeForm input[name="direction"][value="${trade.direction}"]`);
+                    if (editDirInput) editDirInput.checked = true;
+                    
                     document.querySelectorAll('.edit-direction-btn').forEach(btn => {
                         if (btn.dataset.direction === trade.direction) {
                             btn.classList.add('active');

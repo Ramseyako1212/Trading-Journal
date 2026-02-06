@@ -1421,3 +1421,65 @@ textarea.form-control-luxury {
     }
 }
 .gap-3 { gap: 1rem; }
+
+/* Intelligence Center Styles */
+.intelligence-header {
+    background: linear-gradient(90deg, rgba(212, 175, 55, 0.05), transparent);
+}
+
+.ai-pulse-ring {
+    width: 48px;
+    height: 48px;
+    background: rgba(212, 175, 55, 0.1);
+    border: 1px solid rgba(212, 175, 55, 0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    position: relative;
+    animation: pulse-gold 3s infinite;
+}
+
+@keyframes pulse-gold {
+    0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(212, 175, 55, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
+}
+
+.intelligence-item {
+    transition: transform 0.3s ease;
+}
+
+.border-gold-glow {
+    border: 1px solid rgba(212, 175, 55, 0.3) !important;
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.05);
+}
+
+.text-muted-custom {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.smaller {
+    font-size: 0.75rem;
+}
+
+.letter-spacing-1 {
+    letter-spacing: 1px;
+}
+
+.fw-800 { font-weight: 800; }
+.fw-700 { font-weight: 700; }
+
+.text-green { color: #10B981 !important; }
+.text-red { color: #EF4444 !important; }
+.text-cyan { color: #00D4FF !important; }
+.bg-glass { background: rgba(255, 255, 255, 0.05); }
+
+.bg-danger-subtle { background: rgba(239, 68, 68, 0.1) !important; }
+.bg-success-subtle { background: rgba(16, 185, 129, 0.1) !important; }
+
+.glass-btn-group {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}

@@ -62,9 +62,11 @@ $stopLoss = filter_input(INPUT_POST, 'stop_loss', FILTER_SANITIZE_NUMBER_FLOAT, 
 $takeProfit = filter_input(INPUT_POST, 'take_profit', FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION) ?: null;
 $positionSize = filter_input(INPUT_POST, 'position_size', FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION) ?: 1;
 $fees = filter_input(INPUT_POST, 'fees', FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION) ?: 0;
-$entryTime = $_POST['entry_time'] ?? date('Y-m-d H:i:s');
-$exitTime = !empty($_POST['exit_time']) ? $_POST['exit_time'] : null;
+$entryTime = !empty($_POST['entry_time']) ? str_replace('T', ' ', $_POST['entry_time']) : date('Y-m-d H:i:s');
+$exitTime = !empty($_POST['exit_time']) ? str_replace('T', ' ', $_POST['exit_time']) : null;
 $setupQuality = filter_input(INPUT_POST, 'setup_quality', FILTER_SANITIZE_NUMBER_INT) ?: 3;
+$executionQuality = filter_input(INPUT_POST, 'execution_quality', FILTER_SANITIZE_NUMBER_INT) ?: 3;
+$emotionalState = $_POST['emotional_state'] ?? 'Neutral';
 $entryReason = $_POST['entry_reason'] ?? '';
 $exitReason = $_POST['exit_reason'] ?? '';
 $lessonsLearned = $_POST['lessons_learned'] ?? '';
@@ -141,7 +143,7 @@ $instrument = $instQuery->fetch();
             entry_price, exit_price, stop_loss, take_profit,
             position_size, fees, entry_time, exit_time,
             gross_pnl, net_pnl, r_multiple,
-            setup_quality, followed_rules,
+            setup_quality, execution_quality, emotional_state, followed_rules,
             entry_reason, exit_reason, lessons_learned,
             status, created_at
         ) VALUES (
@@ -149,7 +151,7 @@ $instrument = $instQuery->fetch();
             ?, ?, ?, ?,
             ?, ?, ?, ?,
             ?, ?, ?,
-            ?, ?,
+            ?, ?, ?, ?,
             ?, ?, ?,
             ?, NOW()
         )
@@ -160,7 +162,7 @@ $instrument = $instQuery->fetch();
         $entryPrice, $exitPrice, $stopLoss, $takeProfit,
         $positionSize, $fees, $entryTime, $exitTime,
         $grossPnl, $netPnl, $rMultiple,
-        $setupQuality, $followedRules,
+        $setupQuality, $executionQuality, $emotionalState, $followedRules,
         $entryReason, $exitReason, $lessonsLearned,
         $status
     ]);

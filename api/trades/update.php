@@ -52,8 +52,8 @@ try {
     $takeProfit = filter_input(INPUT_POST, 'take_profit', FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION) ?: null;
     $positionSize = filter_input(INPUT_POST, 'position_size', FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION) ?: 1;
     $fees = filter_input(INPUT_POST, 'fees', FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION) ?: 0;
-    $entryTime = $_POST['entry_time'] ?? date('Y-m-d H:i:s');
-    $exitTime = !empty($_POST['exit_time']) ? $_POST['exit_time'] : null;
+    $entryTime = !empty($_POST['entry_time']) ? str_replace('T', ' ', $_POST['entry_time']) : date('Y-m-d H:i:s');
+    $exitTime = !empty($_POST['exit_time']) ? str_replace('T', ' ', $_POST['exit_time']) : null;
     $setupQuality = filter_input(INPUT_POST, 'setup_quality', FILTER_SANITIZE_NUMBER_INT) ?: 3;
     $executionQuality = filter_input(INPUT_POST, 'execution_quality', FILTER_SANITIZE_NUMBER_INT) ?: 3;
     $entryReason = $_POST['entry_reason'] ?? '';

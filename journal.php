@@ -84,58 +84,8 @@ try {
     
     <?php include 'includes/checklist_modal.php'; ?>
 
-    <!-- Sidebar -->
-    <aside class="sidebar-luxury" id="sidebar">
-        <div class="sidebar-brand">
-            <a href="dashboard.php" class="brand-logo">
-                <div class="logo-icon"><i class="bi bi-graph-up-arrow"></i></div>
-                Trading Journal
-            </a>
-        </div>
-        
-        <nav>
-            <ul class="sidebar-nav">
-                <li class="sidebar-nav-item">
-                    <a href="dashboard.php" class="sidebar-nav-link">
-                        <i class="bi bi-speedometer2"></i>Dashboard
-                    </a>
-                </li>
-                <li class="sidebar-nav-item">
-                    <a href="journal.php" class="sidebar-nav-link active">
-                        <i class="bi bi-journal-richtext"></i>Trade Journal
-                    </a>
-                </li>
-                <li class="sidebar-nav-item">
-                    <a href="analytics.php" class="sidebar-nav-link">
-                        <i class="bi bi-bar-chart-line"></i>Analytics
-                    </a>
-                </li>
-                <li class="sidebar-nav-item">
-                    <a href="calendar.php" class="sidebar-nav-link">
-                        <i class="bi bi-calendar3"></i>Calendar
-                    </a>
-                </li>
-                <li class="sidebar-nav-item">
-                    <a href="strategies.php" class="sidebar-nav-link">
-                        <i class="bi bi-lightbulb"></i>Strategies
-                    </a>
-                </li>
-                <li class="mt-4 mb-2">
-                    <small class="text-muted-custom text-uppercase px-3" style="font-size: 0.7rem;">Account</small>
-                </li>
-                <li class="sidebar-nav-item">
-                    <a href="settings.php" class="sidebar-nav-link">
-                        <i class="bi bi-gear"></i>Settings
-                    </a>
-                </li>
-                <li class="sidebar-nav-item">
-                    <a href="api/auth/logout.php" class="sidebar-nav-link">
-                        <i class="bi bi-box-arrow-left"></i>Logout
-                    </a>
-                </li>
-            </ul>
-        </nav>
-    </aside>
+    <?php include "includes/sidebar.php"; ?>
+
     
     <!-- Main Content -->
     <main class="main-content">
@@ -465,7 +415,48 @@ try {
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
-                                
+
+                                <div class="form-group">
+                                    <label class="form-label-luxury">Emotional State</label>
+                                    <select name="emotional_state" class="form-luxury form-select-luxury">
+                                        <option value="Neutral">Neutral</option>
+                                        <option value="Confident">Confident</option>
+                                        <option value="Anxious">Anxious</option>
+                                        <option value="Greedy">Greedy</option>
+                                        <option value="Fearful">Fearful</option>
+                                        <option value="Patient">Patient</option>
+                                        <option value="Frustrated">Frustrated</option>
+                                        <option value="Disciplined">Disciplined</option>
+                                    </select>
+                                </div>
+
+                                <div class="row g-3">
+                                    <div class="col-6">
+                                        <div class="form-group">
+                                            <label class="form-label-luxury">Setup Quality</label>
+                                            <select name="setup_quality" class="form-luxury form-select-luxury">
+                                                <option value="1">1</option>
+                                                <option value="2">2</option>
+                                                <option value="3" selected>3</option>
+                                                <option value="4">4</option>
+                                                <option value="5">5</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-group">
+                                            <label class="form-label-luxury">Execution Quality</label>
+                                            <select name="execution_quality" class="form-luxury form-select-luxury">
+                                                <option value="1">1</option>
+                                                <option value="2">2</option>
+                                                <option value="3" selected>3</option>
+                                                <option value="4">4</option>
+                                                <option value="5">5</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div class="form-group">
                                     <label class="form-label-luxury">Screenshots</label>
                                     <div class="upload-zone" id="uploadZone">
@@ -475,6 +466,12 @@ try {
                                         <input type="file" name="screenshots[]" id="screenshotInput" accept="image/*" multiple class="d-none">
                                     </div>
                                     <div class="image-preview-grid" id="imagePreview"></div>
+                                </div>
+                                <div class="form-group mb-0 mt-3">
+                                    <div class="form-check form-switch-luxury">
+                                        <input type="checkbox" name="followed_rules" value="1" class="form-check-input" id="new_followed_rules" checked>
+                                        <label class="form-check-label text-gold small" for="new_followed_rules">I strictly followed my trading plan</label>
+                                    </div>
                                 </div>
                             </div>
                             
@@ -497,6 +494,12 @@ try {
                                 <div class="form-group">
                                     <label class="form-label-luxury">Lessons Learned</label>
                                     <textarea name="lessons_learned" class="form-luxury" rows="2"></textarea>
+                                </div>
+                                <div class="form-group mb-0 mt-3">
+                                    <div class="form-check form-switch-luxury">
+                                        <input type="checkbox" name="followed_rules" value="1" class="form-check-input" id="newFollowedRules" checked>
+                                        <label class="form-check-label text-gold small" for="newFollowedRules">I strictly followed my trading plan</label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -643,6 +646,47 @@ try {
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
+
+                                <div class="form-group">
+                                    <label class="form-label-luxury">Emotional State</label>
+                                    <select name="emotional_state" id="edit_emotional_state" class="form-luxury form-select-luxury">
+                                        <option value="Neutral">Neutral</option>
+                                        <option value="Confident">Confident</option>
+                                        <option value="Anxious">Anxious</option>
+                                        <option value="Greedy">Greedy</option>
+                                        <option value="Fearful">Fearful</option>
+                                        <option value="Patient">Patient</option>
+                                        <option value="Frustrated">Frustrated</option>
+                                        <option value="Disciplined">Disciplined</option>
+                                    </select>
+                                </div>
+
+                                <div class="row g-3">
+                                    <div class="col-6">
+                                        <div class="form-group">
+                                            <label class="form-label-luxury">Setup Quality</label>
+                                            <select name="setup_quality" id="edit_setup_quality" class="form-luxury form-select-luxury">
+                                                <option value="1">1</option>
+                                                <option value="2">2</option>
+                                                <option value="3">3</option>
+                                                <option value="4">4</option>
+                                                <option value="5">5</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-group">
+                                            <label class="form-label-luxury">Execution Quality</label>
+                                            <select name="execution_quality" id="edit_execution_quality" class="form-luxury form-select-luxury">
+                                                <option value="1">1</option>
+                                                <option value="2">2</option>
+                                                <option value="3">3</option>
+                                                <option value="4">4</option>
+                                                <option value="5">5</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
                                 
                                 <div class="form-group">
                                     <label class="form-label-luxury">New Screenshots</label>
@@ -674,6 +718,12 @@ try {
                                 <div class="form-group">
                                     <label class="form-label-luxury">Lessons Learned</label>
                                     <textarea name="lessons_learned" id="edit_lessons_learned" class="form-luxury" rows="2"></textarea>
+                                </div>
+                                <div class="form-group mb-0 mt-3">
+                                    <div class="form-check form-switch-luxury">
+                                        <input type="checkbox" name="followed_rules" value="1" class="form-check-input" id="edit_followed_rules">
+                                        <label class="form-check-label text-gold small" for="edit_followed_rules">I strictly followed my trading plan</label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -719,6 +769,7 @@ try {
         document.addEventListener('DOMContentLoaded', () => {
             // Populate filters from URL if present
             const urlParams = new URLSearchParams(window.location.search);
+            
             if (urlParams.has('instrument_id')) document.getElementById('filterInstrument').value = urlParams.get('instrument_id');
             if (urlParams.has('strategy_id')) document.getElementById('filterStrategy').value = urlParams.get('strategy_id');
             if (urlParams.has('direction')) document.getElementById('filterDirection').value = urlParams.get('direction');
@@ -727,7 +778,9 @@ try {
             if (urlParams.has('date_to')) document.getElementById('filterDateTo').value = urlParams.get('date_to');
             if (urlParams.has('search')) document.getElementById('filterSearch').value = urlParams.get('search');
 
-            loadTrades();
+            // Force loadTrades to use these values
+            loadTrades(urlParams.get('page') || 1);
+            
             initForm();
             initEditForm();
             initLiveFilters();
@@ -1119,15 +1172,22 @@ try {
                         }
                         
                         document.getElementById('edit_strategy_id').value = trade.strategy_id || '';
+                        document.getElementById('edit_emotional_state').value = trade.emotional_state || 'Neutral';
+                        document.getElementById('edit_setup_quality').value = trade.setup_quality || 3;
+                        document.getElementById('edit_execution_quality').value = trade.execution_quality || 3;
                         document.getElementById('edit_entry_reason').value = trade.entry_reason || '';
                         document.getElementById('edit_exit_reason').value = trade.exit_reason || '';
                         document.getElementById('edit_lessons_learned').value = trade.lessons_learned || '';
+                        document.getElementById('edit_followed_rules').checked = parseInt(trade.followed_rules) === 1;
                         
                         // Clear previous previews
                         document.getElementById('editImagePreview').innerHTML = '';
                         
                         // Close view modal and open edit modal
-                        bootstrap.Modal.getInstance(document.getElementById('viewTradeModal')).hide();
+                        const viewModalEl = document.getElementById('viewTradeModal');
+                        const viewModal = bootstrap.Modal.getInstance(viewModalEl) || new bootstrap.Modal(viewModalEl);
+                        viewModal.hide();
+                        
                         new bootstrap.Modal(document.getElementById('editTradeModal')).show();
                     }
                 });

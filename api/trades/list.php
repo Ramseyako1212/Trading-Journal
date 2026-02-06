@@ -59,7 +59,7 @@ try {
     
     if ($dateFrom) {
         $where[] = "t.entry_time >= ?";
-        $params[] = $dateFrom;
+        $params[] = $dateFrom . ' 00:00:00';
     }
     
     if ($dateTo) {
